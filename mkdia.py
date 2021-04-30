@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# This is a wrapper over QGRAF to generate amplitudes.
-# Usage: mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]
+# This is a wrapper over QGRAF (actually qgraf.sh) to generate amplitudes.
+# Usage: ./mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]
 # The list of particles is from qgraf-modfile.
-# The momenta assignment: q<i> for incoming, p<i> for outgoing;
-# q=sum(q<i>)=sum(p<i>).
+# The style file is qgraf-stylefile.
+# The momenta assignment: q<i> for incoming, p<i> for outgoing, l<i> for loop;
+# with the momenta conservation given by q=sum(q<i>)=sum(p<i>).
 
 import sys
 import re
@@ -23,9 +24,9 @@ momo = ["q"] if len(fieldso) == 1 else [f"p{i+1}" for i in range(len(fieldso))]
 
 # Drop on-shell propagators ~ scaleless ints. Assuming on-shell
 # legs if there is only one input and/or output.
-massive = "stTH"
-opti = [f"--false=plink[{-1-2*i}]" for i, x in enumerate(fieldsi) if x not in massive] if len(fieldsi) > 1 else []
-opto = [f"--false=plink[{-2-2*i}]" for i, x in enumerate(fieldso) if x not in massive] if len(fieldso) > 1 else []
+massless = "qQgA"
+opti = [f"--false=plink[{-1-2*i}]" for i, x in enumerate(fieldsi) if x in massless] if len(fieldsi) > 1 else []
+opto = [f"--false=plink[{-2-2*i}]" for i, x in enumerate(fieldso) if x in massless] if len(fieldso) > 1 else []
 
 os.execv("./qgraf.sh", [
     "./qgraf.sh",
@@ -36,7 +37,6 @@ os.execv("./qgraf.sh", [
     "--out={}".format(", ".join(f"{f}[{m}]" for f, m in zip(fieldso, momo))),
     "--loops={}".format(loops),
     "--loop_momentum=l",
-    #"--options=nosnail",
     "--options=",
     *opti,
     *opto
