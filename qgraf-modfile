@@ -1,0 +1,34 @@
+# Photons
+[A, A, +, external]
+# Higgs'
+[H, H, +, external]
+# Z bosons
+[Z, Z, +, external]
+# Gluons
+[g, g, +]
+# Quarks & antiquarks
+[q, Q, -]
+# Heavy quarks & antiquarks
+[t, T, -]
+# Ghosts (gluonic)
+[c, C, -]
+# Phy^3 scalars
+[s, s, +]
+# Phy^4 scalars
+[S, S, +]
+
+# Vertices
+[A, q, Q]
+[Z, q, Q]
+[g, q, Q]
+[g, c, C]
+[g, g, g]
+[g, g, g, g]
+[s, s, s]
+[S, S, S, S]
+
+[A, t, T]
+[Z, t, T]
+[g, t, T]
+
+[H, t, T]
