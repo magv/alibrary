@@ -1,3 +1,6 @@
+(* # Mathematica utility belt (`utils.m`)
+ *)
+
 LessOrEqualQ[a_, b_] := OrderedQ[{a, b}]
 LessQ[a_, b_] := Not[OrderedQ[{b, a}]]
 

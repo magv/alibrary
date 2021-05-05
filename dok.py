@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Needed packages:
+#   pip3 install mistletoe pygments pygments-mathematica
+
 import sys
 sys.path = [p for p in sys.path if ".local" in p] + [p for p in sys.path if ".local" not in p]
 
@@ -15,45 +18,64 @@ import glob
 import os.path
 import os
 import io
-import mathematica # pygments-mathematica
 import re
 
 # Markdown (i.e. comment) parsing and rendering
+
+# The way this was supposed to work is that in markdown_headers
+# we would preparse Markdown, figure out the complete section
+# structure, and fill in the xref. Then in markdown_render we
+# would render the AST that was parsed here. Unfortunately no
+# Python library actually provides usable AST for Markdown, which
+# is why we will be parsing the text twice, and which is also why
+# there is a duplication of code between DokPreRenderer and DokRenderer.
 
 class CrossReferenceToken(mistletoe.span_token.SpanToken):
     pattern = re.compile(r"\[\[ *(.+?) *\]\]")
     def __init__(self, match):
         self.target = match.group(1)
 
-class TocRenderer(mistletoe.HTMLRenderer):
-    def __init__(self, *extras):
-        super().__init__(CrossReferenceToken, *extras)
+class DokPreRenderer(mistletoe.HTMLRenderer):
+    def __init__(self, url, xref):
+        super().__init__(CrossReferenceToken)
         self._toc = []
+        self._url = url
+        self._xref = xref
     def render_heading(self, token):
-        rendered = super().render_heading(token)
-        content = re.sub(r'<.+?>', '', rendered)
-        self._toc.append((token.level, content))
-        return rendered
+        inner = self.render_inner(token)
+        title = re.sub(r'<.+?>', '', inner)
+        hash = title.replace(" ", "")
+        self._toc.append((token.level, title))
+        self._xref[title] = (self._url, "#" + hash)
+        return ""
 
 class DokRenderer(mistletoe.HTMLRenderer):
-    def __init__(self, xref={}):
-        self._xref = xref
+    def __init__(self, url, xref):
         super().__init__(CrossReferenceToken)
-    def render_cross_reference_token(self, token):
-        template = '<a href="{target}">{inner}</a>'
-        #target = mistletoe.html_renderer.quote(token.target)
-        print("XREF", token.target)
-        target = self._xref.get(token.target, "??")
+        self._url = url
+        self._xref = xref
+    def render_heading(self, token):
         inner = self.render_inner(token)
-        return template.format(target=target, inner=inner)
+        title = re.sub(r'<.+?>', '', inner)
+        hash = title.replace(" ", "")
+        return f'<h{token.level} id=\"{hash}\">{inner}</h{token.level}>'
+    def render_cross_reference_token(self, token):
+        if token.target in self._xref:
+            target, hash = self._xref[token.target]
+            target = relurl(target, self._url)
+            inner = self.render_inner(token)
+            return f"<a href=\"{target}{hash}\">{inner}</a>"
+        else:
+            print(f"WARNING: missing x-ref: {token.target!r}")
+            return "[[" + self.render_inner(token) + "]]"
 
-def markdown_headers(text):
-    with TocRenderer() as renderer:
+def markdown_headers(text, url, xref):
+    with DokPreRenderer(url, xref) as renderer:
         renderer.render(mistletoe.Document(text))
         return renderer._toc
 
-def markdown_render(text, xref={}):
-    with DokRenderer(xref=xref) as renderer:
+def markdown_render(text, url, xref):
+    with DokRenderer(url, xref) as renderer:
         return renderer.render(mistletoe.Document(text))
 
 # Parsing/formatting: Mathematica
@@ -86,8 +108,8 @@ def lexer_with_lineinfo(lexer):
         else:
             column += len(value)
 
-def preparse_mma(data, xref, url):
-    tokens = list(lexer_with_lineinfo(lexer_concat(pygments.lex(data, mathematica.MathematicaLexer()))))
+def preparse_mma(data, xref, url, toc):
+    tokens = list(lexer_with_lineinfo(lexer_concat(pygments.lex(data, pygments.lexers.get_lexer_by_name("wl")))))
     #tokens = list(lexer_concat(pygments.lex(data, mathematica.MathematicaLexer())))
     tok_warn = (pygments.token.Token.Error,)
     tok_func = (pygments.token.Token.Name.Variable,)
@@ -100,11 +122,14 @@ def preparse_mma(data, xref, url):
                 tok3, value3, _, _ = tokens[i+2]
                 if value2 == "\n" and tok3 in tok_func:
                     if tok3 not in xref:
-                        xref[value3] = (url, value3)
+                        xref[value3] = (url, "#" + value3)
+                        toc.append((4, value3))
                         yield Token_Doc, f"<h4 id=\"{value3}\">{value3}[]</h4>\n"
                     else:
                         print(f"Already defined: {value3}")
         if col == 1 and tok in tok_comm:
+            value = strip_comment(value)
+            toc.extend(markdown_headers(value, url, xref))
             yield Token_Doc, value
         #if tok in tok_warn:
         #    print(f"Warning: syntax error in {filename!r} at {lin}:{col}: {value!r}")
@@ -149,19 +174,17 @@ def format_mma(f, xref, url, tokens):
     for tok, value in tokens:
         mode = tok is Token_Doc#pygments.token.Token.Comment
         if lastmode is not mode:
-            if lastmode is True: f.write("</div>")
-            elif lastmode is False: f.write(f"</pre>")
-            if mode is True: f.write("<div class=\"text\">\n")
-            elif mode is False: f.write(f"<pre>")
+            if lastmode is False: f.write(f"</pre>")
+            if mode is False: f.write(f"<pre>")
             lastmode = mode
         if mode is True:
-            f.write(markdown_render(strip_comment(value), xref=xref))
+            f.write(markdown_render(value, url, xref=xref))
         else:
             cls = towrap.get(tok, None)
             if tok == pygments.token.Token.Name.Variable and value in xref:
                 refurl, hash = xref[value]
                 refurl = relurl(refurl, url)
-                f.write(f"<a class=\"{cls}\" href=\"{refurl}#{hash}\">{value}</a>")
+                f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
             #if tok == pygments.token.Token.Name:
             elif cls is not None:
                 f.write(f"<span class=\"{cls}\">{value}</span>")
@@ -173,12 +196,13 @@ MMA = (preparse_mma, format_mma)
 
 # Parsing/formatting: Markdown
 
-def preparse_md(data, xref, url):
+def preparse_md(data, xref, url, toc):
+    toc.extend(markdown_headers(data, url, xref))
     return [data]
 
 def format_md(f, xref, url, data):
     f.write(HTML_HEAD.format(baseprefix=relurl("", url)))
-    f.write(markdown_render(data[0], xref=xref))
+    f.write(markdown_render(data[0], url, xref=xref))
     f.write(HTML_FOOT)
 
 MD = (preparse_md, format_md)
@@ -189,9 +213,10 @@ HTML_HEAD = """\
 <!DOCTYPE html>
 <html lang="en">
  <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width">
   <link rel="stylesheet" href="{baseprefix}style.css">
-  <link rel="icon" type="image/svg+xml" href="{baseprefix}favicon.svg">
+  <link rel="icon" href="{baseprefix}favicon.svg" type="image/svg+xml">
  </head>
  <body>
 """
@@ -202,12 +227,17 @@ HTML_FOOT = """\
 """
 
 STYLE_CSS = """\
+html { background: white; max-width: 800px; margin: auto; }
 html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.2; }
+h1:first-child { margin-top: 0px; }
+h1,h2,h3,h4 { margin-top: 36px; margin-bottom: 12px; }
+pre,p { margin-top: 0px; margin-bottom: 18px; }
+h4 { font-family: "Fira Mono",monospace; }
 a { text-decoration: none; }
 a:hover, a:focus { text-decoration: underline; }
-pre, code { font-family: "Fira Mono",monospace; font-size: 90%; }
-html{ background: white; max-width: 780px; margin: auto; }
-h4 { font-family: "Fira Mono",mononspace; margin-bottom: 0; margin-top: 2em; }
+pre, code { font-family: "Fira Mono",monospace; }
+code { font-size: 90%; }
+pre, pre code { font-size: 14px; }
 .tc { color: #969896; }
 .tl { color: #005cc5; }
 .ts { color: #032f62; }
@@ -216,20 +246,20 @@ h4 { font-family: "Fira Mono",mononspace; margin-bottom: 0; margin-top: 2em; }
 .tne { color: red; }
 .tnt { color: #0c9a9a; }
 pre { overflow-x: auto; }
-pre { padding-left: 1.5em; background: #efeef0; border-left: 0.5em solid #e0e0e8; }
+pre { padding-left: 0.5em; background: #efeef0; border-left: 0.5em solid #e0e0e8; }
+@media screen and (prefers-color-scheme: dark) {
+ html { background: black; color: white; }
+ pre { background: #111; border-left-color: #1f1f2f;}
+}
 """
 
 FAVICON_SVG = """\
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 10 10"
-  height="10mm"
-  width="10mm">
- <g style="fill:none;stroke-width:1;stroke-linecap:butt;stroke-opacity:1">
-  <path d="m 1,9 c 0,-2 2,0 2,-2" style="stroke:#666" />
-  <path d="m 9,1 c 0,2 -2,0 -2,2" style="stroke:#666" />
-  <path d="m 5,8 c -1.5,0 -3,-1.5 -3,-3 0,-1.5 1.5,-3 3,-3 1.5,0 3,1.5 3,3 0,1.5 -1.5,3 -3,3 z" style="stroke:#b02427;" />
- </g>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" height="10mm" width="10mm">
+ <path style="fill:none;stroke:#ef6234;stroke-width:1.5;stroke-linejoin:bevel" d="M 1,9 5,1 9,9" />
+ <path style="fill:none;stroke:#6b75ca;stroke-width:1.0" d="m 2.5,6 c 4,0 3.5,2 2.5,2 -1,0 -1.5,-2 2.5,-2" />
+ <circle style="fill:#222;stroke:none" cx="2.5" cy="6" r="1" />
+ <circle style="fill:#222;stroke:none" cx="7.5" cy="6" r="1" />
 </svg>
 """
 
@@ -269,6 +299,7 @@ if __name__ == "__main__":
 
     xref = {}
     files = []
+    toc = []
     for root, dirnames, filenames in os.walk(srcdir):
         for filename in filenames:
             fullname = os.path.join(root, filename)
@@ -279,9 +310,10 @@ if __name__ == "__main__":
                     url = reldstpath if not reldstpath.endswith("index.html") else \
                           os.path.dirname(reldstpath)
                     print(f"read {relpath} -> {reldstpath}")
+                    xref[relpath] = (url, "")
                     with open(fullname, "r") as f:
                         text = f.read()
-                    data = list(preparse(text, xref, url))
+                    data = list(preparse(text, xref, url, toc))
                     files.append((reldstpath, postparse, url, data))
                     break
 
@@ -307,3 +339,7 @@ if __name__ == "__main__":
 
     create("style.css", STYLE_CSS)
     create("favicon.svg", FAVICON_SVG)
+    create("toc.html", "".join([
+        f"<h{lvl}>{name}</h{lvl}>\n"
+        for lvl, name in toc
+    ]))

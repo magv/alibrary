@@ -1,3 +1,6 @@
+(* # Amplitude library (`library.m`)
+ *)
+
 (* Misc utils *)
 
 (* Remove terms from a series that are not free of a given pattern. *)
@@ -1116,7 +1119,6 @@ Module[{normaldens, i, dots, p1, p2, p, m},
 ]
 IBPBasisSanityCheck[ex_] := Error["Not an IBPBasis: ", ex]
 
-(*sectors[[1,;;,4]]//DeleteCases[q|-q]//Map[DropLeadingSign/*den]// CompleteIBPBasis[#,{l1,l2,l3,p1},{-q},99]&*)
 DiagramToSector[Diagram[_, _, i_List, o_List, p_List, _]] :=
  Module[{outfi2vi, edges, tag},
   Join[
