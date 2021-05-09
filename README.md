@@ -37,9 +37,14 @@ from. Ultimately *you* are doing the calculation, *alibrary*
 is just one of the pieces of code you might be using. Its goal
 is not to be a big deal.
 
-Finally, *Alibrary* is a learning resource. Its source is (or,
-will be) documented, and you are expected to be able to read
-and understand it.
+Finally, *Alibrary* aspires to be a learning resource, and have
+all of its internals obvious and documented, so that one could
+read and understand it without too much effort. The documentation
+currently consists of the annotated [alibrary.m] and [utils.m]
+files. That’s not much so far, but the plan is to improve it.
+
+[alibrary.m]: https://magv.github.io/alibrary/alibrary.html
+[utils.m]: https://magv.github.io/alibrary/utils.html
 
 ## Installation
 
@@ -47,3 +52,8 @@ Download the source code, put it into a directory somewhere,
 and import it into your Mathematica session like this:
 
     Get["/path/to/alibrary.m"];
+
+Alternatively, to only import generic Mathematica functions
+(those that are not related to loop amplitudes), use this:
+
+    Get["/path/to/utils.m"];

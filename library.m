@@ -521,6 +521,10 @@ AmpSanityCheck[ex_] := Module[{idx, termidx},
   )&];
 ]
 
+(* Run expressions through FORM (using `library.frm`), running
+ * the specified code fragment on it. (The code is constructed
+ * with [[MkString]]).
+ *)
 AmpFormRun[{}, _] := {}
 AmpFormRun[exprs_List, code_] :=
  Module[{tmpsrc, tmpdst, tmplog, result, toform, fromform, i, expridxs},

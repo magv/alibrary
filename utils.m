@@ -1,4 +1,9 @@
 (* # Mathematica utility belt (`utils.m`)
+ *
+ * ## Contents
+ * [[table of contents]]
+ *
+ * ## Misc
  *)
 
 LessOrEqualQ[a_, b_] := OrderedQ[{a, b}]

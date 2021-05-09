@@ -35,6 +35,9 @@ class CrossReferenceToken(mistletoe.span_token.SpanToken):
     def __init__(self, match):
         self.target = match.group(1)
 
+def text_to_id(text):
+    return text.replace(" ", "")
+
 class DokPreRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref):
         super().__init__(CrossReferenceToken)
@@ -44,38 +47,75 @@ class DokPreRenderer(mistletoe.HTMLRenderer):
     def render_heading(self, token):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
-        hash = title.replace(" ", "")
         self._toc.append((token.level, title))
-        self._xref[title] = (self._url, "#" + hash)
+        self._xref[title] = (self._url, "#" + text_to_id(title))
         return ""
 
 class DokRenderer(mistletoe.HTMLRenderer):
-    def __init__(self, url, xref):
+    def __init__(self, url, xref, toc, code_language="wl"):
         super().__init__(CrossReferenceToken)
         self._url = url
         self._xref = xref
+        self._toc = toc
+        self._code_language = code_language
+        self._headers = []
     def render_heading(self, token):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
-        hash = title.replace(" ", "")
-        return f'<h{token.level} id=\"{hash}\">{inner}</h{token.level}>'
+        self._headers.append((token.level, title))
+        return f'<h{token.level} id=\"{text_to_id(title)}\">{inner}</h{token.level}>'
     def render_cross_reference_token(self, token):
         if token.target in self._xref:
             target, hash = self._xref[token.target]
             target = relurl(target, self._url)
             inner = self.render_inner(token)
             return f"<a href=\"{target}{hash}\">{inner}</a>"
+        elif token.target == "table of contents":
+            with io.StringIO() as f:
+                format_toc(f, [item for item in self._toc if item not in self._headers])
+                return f.getvalue()
         else:
             print(f"WARNING: missing x-ref: {token.target!r}")
             return "[[" + self.render_inner(token) + "]]"
+    def render_block_code(self, token):
+        towrap = {
+            pygments.token.Token.Comment: "tc",
+            pygments.token.Token.Literal.Number: "tl",
+            pygments.token.Token.Literal.Number.Float: "tc",
+            pygments.token.Token.Literal.Number.Integer: "tc",
+            pygments.token.Token.Literal.String: "ts",
+            pygments.token.Token.Name: "tn",
+            pygments.token.Token.Name.Builtin: "tnb",
+            pygments.token.Token.Name.Exception: "tne",
+            pygments.token.Token.Name.Tag: "tnt",
+            pygments.token.Token.Name.Variable: "tnv",
+            pygments.token.Token.Name.Variable.Class: "tnvc"
+        }
+        inner = token.children[0].content
+        lexer = pygments.lexers.get_lexer_by_name(token.language or self._code_language)
+        tokens = pygments.lex(inner, lexer)
+        with io.StringIO() as f:
+            f.write("<pre class=\"doc\">")
+            for tok, value in tokens:
+                cls = towrap.get(tok, None)
+                if tok == pygments.token.Token.Name.Variable and value in self._xref:
+                    refurl, hash = self._xref[value]
+                    refurl = relurl(refurl, self._url)
+                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
+                elif cls is not None:
+                    f.write(f"<span class=\"{cls}\">{value}</span>")
+                else:
+                    f.write(value)
+            f.write("</pre>\n")
+            return f.getvalue()
 
 def markdown_headers(text, url, xref):
     with DokPreRenderer(url, xref) as renderer:
         renderer.render(mistletoe.Document(text))
         return renderer._toc
 
-def markdown_render(text, url, xref):
-    with DokRenderer(url, xref) as renderer:
+def markdown_render(text, url, xref, toc):
+    with DokRenderer(url, xref, toc) as renderer:
         return renderer.render(mistletoe.Document(text))
 
 # Parsing/formatting: Mathematica
@@ -123,8 +163,8 @@ def preparse_mma(data, xref, url, toc):
                 if value2 == "\n" and tok3 in tok_func:
                     if tok3 not in xref:
                         xref[value3] = (url, "#" + value3)
-                        toc.append((4, value3))
-                        yield Token_Doc, f"<h4 id=\"{value3}\">{value3}[]</h4>\n"
+                        toc.append((3, value3))
+                        yield Token_Doc, f"<h3 id=\"{value3}\">{value3}[]</h3>\n"
                     else:
                         print(f"Already defined: {value3}")
         if col == 1 and tok in tok_comm:
@@ -155,8 +195,31 @@ def relurl(url, baseurl):
     if url[-1] == "index.html": url = url[:-1] + [""]
     return "/".join([".."] * (len(baseurl) - n - 1) + url[n:])
 
-def format_mma(f, xref, url, tokens):
-    f.write(HTML_HEAD.format(baseprefix=relurl("", url)))
+def format_toc(f, toc):
+    level0 = min(lvl for lvl, title in toc) - 1
+    f.write("<nav>\n")
+    level = level0
+    for lvl, title in toc:
+        if level < lvl:
+            while level < lvl:
+                f.write("<ul><li>\n")
+                level += 1
+        elif level > lvl:
+            while level > lvl:
+                f.write("</li></ul>\n")
+                level -= 1
+            f.write("</li><li>\n")
+        else:
+            f.write("</li><li>\n")
+        f.write(f" <a href=\"#{text_to_id(title)}\">{title}</a>\n")
+    while level > level0:
+        f.write("</li></ul>\n")
+        level -= 1
+    f.write("</nav>\n")
+
+def format_mma(f, xref, url, tokens, toc):
+    title = toc[0][1] if toc else None
+    f.write(HTML_HEAD.format(baseprefix=relurl("", url), title=title))
     towrap = {
         pygments.token.Token.Comment: "tc",
         pygments.token.Token.Literal.Number: "tl",
@@ -178,7 +241,7 @@ def format_mma(f, xref, url, tokens):
             if mode is False: f.write(f"<pre>")
             lastmode = mode
         if mode is True:
-            f.write(markdown_render(value, url, xref=xref))
+            f.write(markdown_render(value, url, xref, toc))
         else:
             cls = towrap.get(tok, None)
             if tok == pygments.token.Token.Name.Variable and value in xref:
@@ -200,9 +263,10 @@ def preparse_md(data, xref, url, toc):
     toc.extend(markdown_headers(data, url, xref))
     return [data]
 
-def format_md(f, xref, url, data):
-    f.write(HTML_HEAD.format(baseprefix=relurl("", url)))
-    f.write(markdown_render(data[0], url, xref=xref))
+def format_md(f, xref, url, data, toc):
+    title = toc[0][1] if toc else None
+    f.write(HTML_HEAD.format(baseprefix=relurl("", url), title=title))
+    f.write(markdown_render(data[0], url, xref, toc))
     f.write(HTML_FOOT)
 
 MD = (preparse_md, format_md)
@@ -214,6 +278,7 @@ HTML_HEAD = """\
 <html lang="en">
  <head>
   <meta charset="UTF-8">
+  <title>{title}</title>
   <meta name="viewport" content="width=device-width">
   <link rel="stylesheet" href="{baseprefix}style.css">
   <link rel="icon" href="{baseprefix}favicon.svg" type="image/svg+xml">
@@ -230,9 +295,9 @@ STYLE_CSS = """\
 html { background: white; max-width: 800px; margin: auto; }
 html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.2; }
 h1:first-child { margin-top: 0px; }
-h1,h2,h3,h4 { margin-top: 36px; margin-bottom: 12px; }
-pre,p { margin-top: 0px; margin-bottom: 18px; }
-h4 { font-family: "Fira Mono",monospace; }
+h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
+pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
+h3 { font-family: "Fira Mono",monospace; }
 a { text-decoration: none; }
 a:hover, a:focus { text-decoration: underline; }
 pre, code { font-family: "Fira Mono",monospace; }
@@ -247,9 +312,14 @@ pre, pre code { font-size: 14px; }
 .tnt { color: #0c9a9a; }
 pre { overflow-x: auto; }
 pre { padding-left: 0.5em; background: #efeef0; border-left: 0.5em solid #e0e0e8; }
+pre.doc { margin-left: 2em; border-left-color: #d0e0e0; }
+ul ul { text-align: left; }
+ul ul li { display: inline; }
+ul ul li:after { content: " * "; color: #557; }
+ul ul li:last-child:after { content: ""; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: black; color: white; }
- pre { background: #111; border-left-color: #1f1f2f;}
+ pre { background: #111; border-left-color: #1f1f2f; }
 }
 """
 
@@ -299,12 +369,12 @@ if __name__ == "__main__":
 
     xref = {}
     files = []
-    toc = []
+    fulltoc = []
     for root, dirnames, filenames in os.walk(srcdir):
         for filename in filenames:
             fullname = os.path.join(root, filename)
             relpath = os.path.relpath(fullname, srcdir)
-            for pat, tmpl, (preparse, postparse) in config:
+            for pat, tmpl, (preparse, format) in config:
                 reldstpath = sub_pattern(pat, tmpl, relpath)
                 if reldstpath is not None:
                     url = reldstpath if not reldstpath.endswith("index.html") else \
@@ -313,11 +383,13 @@ if __name__ == "__main__":
                     xref[relpath] = (url, "")
                     with open(fullname, "r") as f:
                         text = f.read()
+                    toc = []
                     data = list(preparse(text, xref, url, toc))
-                    files.append((reldstpath, postparse, url, data))
+                    fulltoc.extend(toc)
+                    files.append((reldstpath, format, url, data, toc))
                     break
 
-    for reldstpath, postparse, url, data in files:
+    for reldstpath, format, url, data, toc in files:
         dstpath = os.path.join(dstdir, reldstpath)
         dirname = os.path.dirname(dstpath)
         if dirname and not os.path.exists(dirname):
@@ -325,7 +397,7 @@ if __name__ == "__main__":
             os.mkdir(dirname)
         print(f"format {dstpath} ({url})")
         with open(dstpath, "w") as f:
-            postparse(f, xref, url, data)
+            format(f, xref, url, data, toc)
 
     def create(relpath, content):
         dstpath = os.path.join(dstdir, relpath)
@@ -340,6 +412,7 @@ if __name__ == "__main__":
     create("style.css", STYLE_CSS)
     create("favicon.svg", FAVICON_SVG)
     create("toc.html", "".join([
-        f"<h{lvl}>{name}</h{lvl}>\n"
-        for lvl, name in toc
+        f"<h{lvl}>{name}</h{lvl}>\n" if lvl < 4 else \
+        f"<span>{name}</span> * "
+        for lvl, name in fulltoc
     ]))
