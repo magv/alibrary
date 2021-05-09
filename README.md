@@ -6,7 +6,7 @@ for all. This means that one needs try different approaches,
 investigate, and iterate. To this end, one can’t use a prepackaged
 monolithic solution—one needs a library: *alibrary*.
 
-*Alibrary* is a Mathematica library that provides functions to
+*Alibrary* is a [Mathematica] library that provides functions to
 generate Feynman diagrams, insert Feynman rules, sum over tensor
 traces, construct IBP families, convert amplitudes to IBP notation,
 etc, etc. It acts as a central hub to call into [QGRAF], [GraphViz],
@@ -16,6 +16,7 @@ etc, etc. It acts as a central hub to call into [QGRAF], [GraphViz],
 and modify intermediate results, and generally progress towards
 building a solution to your problem one step at a time.
 
+[mathematica]: https://www.wolfram.com/mathematica/
 [qgraf]: http://cfif.ist.utl.pt/~paulo/qgraf.html
 [graphviz]: https://graphviz.org/
 [form]: https://www.nikhef.nl/~form/
@@ -39,12 +40,29 @@ is not to be a big deal.
 
 Finally, *Alibrary* aspires to be a learning resource, and have
 all of its internals obvious and documented, so that one could
-read and understand it without too much effort. The documentation
-currently consists of the annotated [alibrary.m] and [utils.m]
-files. That’s not much so far, but the plan is to improve it.
+read and understand it without too much effort. This goal is a
+work in progress. Sorry.
 
+## Documentation
+
+The documentation currently lives at [magv.github.io/alibrary]
+and consists of the annotated [alibrary.m] and [utils.m]
+files. That’s not much, but the plan is to improve it.
+
+[magv.github.io/alibrary]: https://magv.github.io/alibrary/
 [alibrary.m]: https://magv.github.io/alibrary/alibrary.html
 [utils.m]: https://magv.github.io/alibrary/utils.html
+
+Additionally, the author gave a talk at [CAPP 2021] about
+[Calculating loop amplitudes on a computer]: it describes how
+to build a library like *alibrary*. The [code accompanying the
+talk] is in essence a simplified version of this library, so
+the presentation is an accurate description of the main ideas
+and intended usage.
+
+[capp 2021]: https://indico.desy.de/event/26814/
+[calculating loop amplitudes on a computer]: https://indico.desy.de/event/26814/contributions/94605/attachments/65148/80414/magerya-capp2021.pdf
+[code accompanying the talk]: https://indico.desy.de/event/26814/contributions/94605/attachments/65148/80413/magerya-capp2021.zip
 
 ## Installation
 
