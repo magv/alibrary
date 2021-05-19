@@ -12,22 +12,21 @@ auto S x;
 Table sparse zerofill UNIQVALS(1);
 
 * These are the incoming and outgoing names.
-CF delta, epsilon4(a), deltaf(s), deltaft(s), dot(s), momentum, polarization, den, gammachain, gammatrace, spinor, slash, gamma, gamma5, colorT, colorf, sp, B;
-CF chargeQ, chargeV, chargeA;
-CF inv;
-auto S g;
-S I, d, ep, cut, irr;
-*S gamma1tr;
-S Ca, Cf, Tf, Na, Nc, Xi, Xi2, Xi3, Xi4;
-S Nf, Nft, Q0, V0, A0, Q02, V02, A02, V0A0, SumQf, SumQf2, SumVf, SumVf2, SumAf, SumAf2, SumVfAf;
-S Bid;
-auto I lor = d, adj = Na, fun = Nc, flv = FAIL, spn = FAIL, X = FAIL;
-auto V p, q, l, r;
-auto S Bden;
-auto S m, s;
-CF A, P;
+cfunction delta, epsilon4(a), deltaf(s), deltaft(s), dot(s), momentum, polarization, den, gammachain, gammatrace, spinor, slash, gamma, gamma5, colorT, colorf, sp, B;
+cfunction chargeQ, chargeV, chargeA, chargeQt, chargeVt, chargeAt;
+cfunction flvsum, flvsumt;
+cfunction inv;
+symbol I, d, ep, cut, irr;
+symbol Ca, Cf, Tf, Na, Nc, Xi, Xi2, Xi3, Xi4;
+symbol Nf, Nft, Q0, V0, A0, Q02, V02, A02, V0A0, SumQf, SumQf2, SumVf, SumVf2, SumAf, SumAf2, SumVfAf;
+symbol Bid;
+auto symbol g;
+auto index lor = d, adj = Na, fun = Nc, flv = FAIL, spn = FAIL, X = FAIL;
+auto vector p, q, l, r;
+auto symbol Bden;
+auto symbol m, s;
+cfunction A, P;
 
-*unitTrace gamma1tr;
 unitTrace 4;
 
 #procedure input
@@ -60,30 +59,27 @@ unitTrace 4;
 * - d[ab] d[bc] d[ca] charge[b]^n -- a closed loop with a charge (=SumQf, SumQf2)
 * - d[ab] d[b0] d[0a]             -- a fixed index (=1)
 * - d[ab] d[b0] d[0a] charge[b]^n -- a fixed index with a charge (=Q0, Q0^2)
-    repeat id deltaf(flv1?, flv?!{,0})*deltaf(flv?, flv2?) = deltaf(flv1, flv2)*replace_(flv, flv1);
+    repeat id deltaf(flv1?, flv?)*deltaf(flv?, flv2?) = deltaf(flv1, flv2)*replace_(flv, flv1);
+    repeat id deltaft(flv1?, flv?)*deltaft(flv?, flv2?) = deltaft(flv1, flv2)*replace_(flv, flv1);
 * Now we only have:
 * - d[aa]
 * - d[aa] charge[a]^n
-* - d[00]
-* - d[00] charge[0]^n
-    id deltaf(0, 0)*chargeV(0)*chargeA(0) = V0A0;
-    id deltaf(0, 0)*chargeQ(0)^2 = Q02;
-    id deltaf(0, 0)*chargeV(0)^2 = V02;
-    id deltaf(0, 0)*chargeA(0)^2 = A02;
-    id deltaf(0, 0)*chargeQ(0) = Q0;
-    id deltaf(0, 0)*chargeV(0) = V0;
-    id deltaf(0, 0)*chargeA(0) = A0;
-    id deltaf(0, 0) = 1;
-    id deltaf(flv?, flv?)*chargeV(flv?)*chargeA(flv?) = SumVfAf;
-    id deltaf(flv?, flv?)*chargeQ(flv?)^2 = SumQf2;
-    id deltaf(flv?, flv?)*chargeA(flv?)^2 = SumAf2;
-    id deltaf(flv?, flv?)*chargeV(flv?)^2 = SumVf2;
-    id deltaf(flv?, flv?)*chargeQ(flv?) = SumQf;
-    id deltaf(flv?, flv?)*chargeA(flv?) = SumAf;
-    id deltaf(flv?, flv?)*chargeV(flv?) = SumVf;
-    id deltaf(flv?, flv?) = Nf;
+    id deltaf(flv?, flv?) = flvsum(flv, 1);
+    repeat id flvsum(flv?, x?) * chargeQ(flv?) = flvsum(flv, x*chargeQ);
+    repeat id flvsum(flv?, x?) * chargeV(flv?) = flvsum(flv, x*chargeV);
+    repeat id flvsum(flv?, x?) * chargeA(flv?) = flvsum(flv, x*chargeA);
+    repeat id flvsum(flv?, x?) = flvsum(x);
+    id deltaft(flv?, flv?) = flvsumt(flv, 1);
+    repeat id flvsumt(flv?, x?) * chargeQt(flv?) = flvsum(flv, x*chargeQt);
+    repeat id flvsumt(flv?, x?) * chargeVt(flv?) = flvsum(flv, x*chargeVt);
+    repeat id flvsumt(flv?, x?) * chargeAt(flv?) = flvsum(flv, x*chargeAt);
+    repeat id flvsumt(flv?, x?) = flvsumt(x);
+    id deltaft(flv?, flv?)*chargeQt(flv?)^x1?*chargeVt(flv?)^x2?*chargeAt(flv?)^x3? = flvsum(chargeQt^x1*chargeVt^x2*chargeAt^x3);
     if (match(deltaf(x1?, x2?)) || match(chargeQ(?x)) || match(chargeA(?x)) || match(chargeV(?x)));
-      exit "ERROR: flavorsumwithcharge: leftover flavors; unexpected flavor structure?";
+      exit "ERROR: flavorsumwithcharge: leftover light flavors; unexpected flavor structure?";
+    endif;
+    if (match(deltaft(x1?, x2?)) || match(chargeQt(?x)) || match(chargeAt(?x)) || match(chargeVt(?x)));
+      exit "ERROR: flavorsumwithcharge: leftover heavy flavors; unexpected flavor structure?";
     endif;
 #call end(flavorsumwithcharge)
 #endprocedure
