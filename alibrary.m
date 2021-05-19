@@ -9,9 +9,9 @@
  * ## Contents
  * [[table of contents]]
  *
- * ## The code
+ * * * *
  *
- * First, load the other libraries.
+ * First, load the other libraries, [[utils.m]] and [[library.m]].
  *)
 
 Get["utils.m"];
@@ -45,7 +45,7 @@ Get["library.m"];
 DiagramId[Diagram[id_, factor_, ifld_, ofld_, props_, verts_]] := id
 
 (* Note that we store but don’t trust the sign of the diagram
- * that QGraf produces. Use `DiagramSign[]` to compute the actual
+ * that QGraf produces. Use [[DiagramSign]] to compute the actual
  * sign.
  *)
 DiagramSymmetryFactor[Diagram[_, factor_, _, _, _, _]] := Abs[factor]
@@ -103,19 +103,6 @@ FailUnless[
   ExpandScalarProducts[x|y|z|q][sp[a x + b y, c x]] === a c sp[x,x] + b c sp[x,y]
 ]
 
-IBPRelations[basis_Association] := Module[{dens, i, l, v},
-  dens = basis["denominators"];
-  Table[
-    Product[bden[i]^(n[i]), {i, Length[dens]}]*(
-        Sum[-2 n[i] D[dens[[i, 1]], l] sp[v, dens[[i, 1]]] bden[i], {i, Length[dens]}] +
-        If[v === l, d, 0]
-      )
-    ,
-    {l, basis["loopmom"]},
-    {v, Join[basis["externalmom"], basis["loopmom"]]}
-  ] // Flatten // Map[ToB[basis]] // Bracket[#, _B, Together]&
-]
-
 (* Convert an expression with `sp` and `den` to `B` notation in
  * a given basis. This is the slow version of it; the faster one
  * uses FORM: see [[AmpFormRun]] and [[FormFnToB]].
@@ -134,18 +121,80 @@ ToB[ex_, basis_Association] := Module[{indices},
     ) &]&
 ]
 
-CompleteIBPBasis[denominators_List, loopmom_List, extmom_List, sprules_List, bid_] :=
+(* List IBP relations for a basis, return a list of equations
+ * with terms of the form `B[id, n[1], n[2], ...]` and coefficients
+ * that depend on `n[i]`.
+ *)
+IBPRelations[basis_Association] := Module[{dens, i, l, v},
+  dens = basis["denominators"];
+  Table[
+    Product[bden[i]^(n[i]), {i, Length[dens]}]*(
+        Sum[-2 n[i] D[dens[[i, 1]], l] sp[v, dens[[i, 1]]] bden[i], {i, Length[dens]}] +
+        If[v === l, d, 0]
+      )
+    ,
+    {l, basis["loopmom"]},
+    {v, Join[basis["externalmom"], basis["loopmom"]]}
+  ] // Flatten // Map[ToB[basis]] // Bracket[#, _B, Together]&
+]
+
+(* Figure out the dimensionality of variables in an expression
+ * (or a list of expressions) of a given dimensionality.
+ *
+ * E.g.:
+ *
+ *     In[1]:= VariableDimensions[m + m^2/q, 1]
+ *     Out[1]= {m -> 1, q -> 1}
+ *)
+VariableDimensions[{}, _] := {}
+VariableDimensions[expression_, dimension_] := Module[{DimOf, DimOfSymbol, ex, eqns, solution},
+  DimOf[ex_List] := (
+    ex // Map[Sow[DimOf[#] == DimOf[ex[[1]]]]&];
+    DimOf[ex[[1]]]
+  );
+  DimOf[ex_Plus] := (
+    ex // Apply[List] // Map[Sow[DimOf[#] == DimOf[ex[[1]]]]&];
+    DimOf[ex[[1]]]
+  );
+  DimOf[ex_Times] := ex // Apply[List] // Map[DimOf] // Apply[Plus];
+  DimOf[ex_^n_] := DimOf[ex]*n;
+  DimOf[ex_?NumberQ] := 0;
+  DimOf[ex_Symbol] := DimOfSymbol[ex];
+  DimOf[ex_] := Error["Don't know the dimension of: ", ex];
+  eqns = Reap[Sow[DimOf[expression // DeleteCases[0]] == dimension];][[2,1]] // Apply[And];
+  If[eqns === False, Error["The dimension of ", expression, " can't be ", dimension]];
+  solution = eqns // Solve[#, # // CaseUnion[_DimOfSymbol]]&;
+  If[solution === {}, Error["Inconsistent dimension in ", expression]];
+  solution[[1]] /. DimOfSymbol[ex_] :> ex
+]
+
+(* Complete a list of denominators to a full IBP basis, and
+ * return an IBP basis object with all the information. This
+ * object is used throughout this library, and this is the main
+ * way to create it.
+ *
+ * Example:
+ *
+ *     In[]:= CompleteIBPBasis[1, {den[l1], den[q-l1]}, {l1, l2}, {q}, {sp[q,q]->qq}]
+ *     Out[]=
+ *     <|
+ *      "id" -> 1, "loopmom" -> {l1, l2}, "externalmom" -> {q},
+ *      "sprules" -> {sp[q,q] -> qq}, "invariants" -> {qq}, "massdimensions" -> {qq -> 2},
+ *      "denominators" -> { den[l1], den[l1-q], den[l2,0,irr], den[l1+l2,0,irr], den[l2+q,0,irr] },
+ *      "denmap" -> <| den[l1] -> bden[1], ... |>,
+ *      "nummap" -> <| sp[l1,l1] -> 1/bden[1], ... |>
+ *     |>
+ *)
+CompleteIBPBasis[bid_, denominators_List, loopmom_List, extmom_List, sprules_List] :=
 Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxadd, dens, Complete, rels},
   L = loopmom // Map[DropLeadingSign] // Apply[Alternatives];
   M = Join[loopmom, extmom] // Map[DropLeadingSign] // Apply[Alternatives];
   dens = denominators // NormalizeDens // Sort;
   nums = dens /. den[p_] :> p^2 /. den[p_, m2_, ___] :> p^2 - m2 // Expand;
   nums = nums /. (l:M) (k:M) :> Sort[sp[l, k]] /. (l:M)^2 :> sp[l, l] /. sprules;
-  (*Print["NUMS:", nums];*)
   vars = Tuples[{loopmom, Join[loopmom, extmom]}] //
     Map[DropLeadingSign /* Sort /* Apply[sp]] //
     Union;
-  (*Print["Independent scalar products: ",Length[vars],", ", vars];*)
   If[nums =!= {},
     {c, mx} = CoefficientArrays[nums, vars] // Normal;
     (* nums == c + mx.vars *)
@@ -174,48 +223,7 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
     Join[#, Cases[#, {a_, b_, c_} :> {a, -b, -c}]]& //
     *)
     Map[Apply[Plus] /* DropLeadingSign] //
-    Select[NotFreeQ[L]](* //
-    RandomSample*);
-  (*Print["Candidate irr denominators: ", candidatemoms//Length];*)
-  (*
-  While[Length[vars] > Length[mx] && Length[candidatemoms] > 0,
-    numadd = Expand[candidatemoms[[1]]^2];
-    numadd = numadd /. (l:M) (k:M) :> Sort[sp[l, k]] /. (l:M)^2 :> sp[l, l] /. sprules;
-    {cadd, mxadd} = CoefficientArrays[numadd, vars] // Normal;
-    If[MatrixRank[Append[mx, mxadd]] === Length[mx] + 1,
-      (*Print["Add: ",candidatemoms[[1]]];*)
-      AppendTo[mx, mxadd];
-      AppendTo[dens, den[candidatemoms[[1]], 0, irr]];
-      (*AppendTo[nums, numadd];*)
-      AppendTo[c, cadd];
-      (*c+mx.vars==nums*)
-      ,
-      (*Print["Can't add: ",candidatemoms[[1]]];*)
-      candidatemoms = candidatemoms[[2 ;;]];
-    ];
-  ];
-  <|
-    "id" -> bid,
-    "loopmom" -> (loopmom // DropLeadingSign),
-    "externalmom" -> (extmom // DropLeadingSign),
-    "sprules" -> sprules,
-    "denominators" -> dens,
-    "denmap" -> (
-      MapIndexed[#1 -> bden @@ #2 &, dens] //
-      DeleteCases[den[_, _, irr] -> _] //
-      ReplaceAll[(den[p_, x___] -> y_) :> {den[p, x] -> y, den[-p, x] -> y}] //
-      Flatten //
-      Association
-    ),
-    "nummap" -> (
-      Inverse[mx].(Map[1/bden[#] &, Range[Length[mx]]] - c) //
-      Bracket[#, _bden, Factor]& //
-      MapThread[Rule, {vars, #}]& //
-      Join[#, # /. sp[a_, b_] :> sp[b, a]]& //
-      Association
-    )
-  |>
-  *)
+    Select[NotFreeQ[L]];
   Complete[dens_, mx_, c_, mini_] := Module[{i},
     If[Length[mx] === Length[vars],
       (*Print["OK"];*)
@@ -290,7 +298,6 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
     DeleteCases[x_ -> x_]
 ]
 
-
 (*
  * ## Feynson
  *)
@@ -313,14 +320,43 @@ ZeroSectors[basis_] :=
       basis["sprules"] /. Rule->List /. sp -> Times
     }] //
     Map[B[basis["id"], Sequence@@SectorIdToIndices[#, Length[basis["denominators"]]]]&]
+ZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
 
+(* Return a pattern that matches zero intergals (in the `B`
+ * notation) of a given basis.
+ *)
 ZeroSectorPattern[basis_] := ZeroSectors[basis] //
   MapReplace[B[bid_, idx__] :> B[bid, {idx} /. 1 -> _ /. 0 -> _?NonPositive // Apply[Sequence]]] //
   Apply[Alternatives]
+ZeroSectorPattern[bases_List] := bases // Map[ZeroSectorPattern] // Apply[Alternatives]
+
+(* Return a list of momenta maps, such that applying them to
+ * the list of feynman integral families makes symmetries and
+ * subtopology relations explicit. So, families that are symmetric
+ * will have identical sets of denominators after the maps are
+ * applied. Families that are symmetric to a subtopology of a
+ * bigger family will have a subsets of the denominators.
+ *
+ * The families are defined by their set of den[]s.
+ *
+ * The latter families are guaranteed to be mapped to the former ones.
+ *
+ * You can use [[UniqueSupertopologyMapping]] to figure out the
+ * topmost supertopologies after this.
+ *)
+SymmetryMaps[families_List, loopmom_List, extmom_List, sprules_] :=
+Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
+  densets = families // NormalizeDens // Map[
+    CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopmom]]
+  ];
+  densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
+  RunThrough[$Feynson <> " symmetrize -j4 -q -", {densets, loopmom, sprules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
+];
+SymmetryMaps[families_List, loopmom_List, extmom_List] := SymmetryMaps[families, loopmom, extmom, {}]
 
 (* Form function to convert the current expression into B notation.
- * To be used with AmpFormRun. *)
-FormFnToB[bases_List] := {
+ * To be used with [[AmpFormRun]]. *)
+FormFnToB[bases_List] := MkString[
     "#procedure toBid\n",
     "* Assume Bid^n factor are already supplied.\n",
     "#endprocedure\n",
@@ -354,8 +390,11 @@ FormFnToB[bases_List] := {
     "  endif;\n",
     "#endprocedure\n",
     "#call toB(", Length[bases[[1, "denominators"]]], ", toBid, toBden)\n"
-  }
+  ]
 
+(*
+ * ## Kira interface
+ *)
 (* Kira sorts bases by name instead of adhering to the order
  * of definition. We shall make sure that both the numerical
  * and the lexicographic orders match, which will prevent Kira
@@ -363,28 +402,8 @@ FormFnToB[bases_List] := {
  *)
 KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
 
-VariableDimensions[{}, _] := {}
-VariableDimensions[expression_, dimension_] := Module[{DimOf, DimOfSymbol, ex, eqns, solution},
-  DimOf[ex_List] := (
-    ex // Map[Sow[DimOf[#] == DimOf[ex[[1]]]]&];
-    DimOf[ex[[1]]]
-  );
-  DimOf[ex_Plus] := (
-    ex // Apply[List] // Map[Sow[DimOf[#] == DimOf[ex[[1]]]]&];
-    DimOf[ex[[1]]]
-  );
-  DimOf[ex_Times] := ex // Apply[List] // Map[DimOf] // Apply[Plus];
-  DimOf[ex_^n_] := DimOf[ex]*n;
-  DimOf[ex_?NumberQ] := 0;
-  DimOf[ex_Symbol] := DimOfSymbol[ex];
-  DimOf[ex_] := Error["Don't know the dimension of: ", ex];
-  eqns = Reap[Sow[DimOf[expression // DeleteCases[0]] == dimension];][[2,1]] // Apply[And];
-  If[eqns === False, Error["The dimension of ", expression, " can't be ", dimension]];
-  solution = eqns // Solve[#, # // CaseUnion[_DimOfSymbol]]&;
-  If[solution === {}, Error["Inconsistent dimension in ", expression]];
-  solution[[1]] /. DimOfSymbol[ex_] :> ex
-]
-
+(* Create Kira’s `kinematics.yaml` config file.
+ *)
 MkKiraKinematicsYaml[filename_, extmom_List, sprules_List] :=
   MkFile[filename,
     "kinematics:\n",
@@ -403,6 +422,8 @@ MkKiraKinematicsYaml[filename_, extmom_List, sprules_List] :=
     "# symbol_to_replace_by_one: qq"
   ];
 
+(* Create Kira’s `integralfamilies.yaml` config file.
+ *)
 MkKiraIntegralFamiliesYaml[filename_, bases_List] :=
 Module[{loopmom, extmom, dens, basis},
   MkFile[filename,
@@ -435,6 +456,8 @@ Module[{loopmom, extmom, dens, basis},
   ];
 ]
 
+(* Create Kira’s jobs file.
+ *)
 MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, sector}, 
   MkFile[filename,
     "jobs:\n",
@@ -508,6 +531,8 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
   ];
 ]
 
+(* Create Kira’s integral list file.
+ *)
 MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
   Do[
     idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
@@ -518,6 +543,9 @@ MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
     {bid, blist // CaseUnion[B[bid_, ___] :> bid]}];
 ]
 
+(* Create Kira’s configuration directory for reduction of
+ * given integrals under given bases.
+ *)
 MkKiraConfig[dirname_, bases_List, blist_] :=
 Module[{bid, bids, bid2topsector, idxlist},
   If[Not[FileExistsQ[dirname]], CreateDirectory[dirname]];
@@ -535,6 +563,9 @@ Module[{bid, bids, bid2topsector, idxlist},
   MkKiraIntegrals[dirname, blist];
 ]
 
+(* Read the IBP tables from a Kira directory, apply them to a
+ * given expression.
+ *)
 KiraApplyResults[ex_, confdir_String, bases_List] :=
 Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
   bids = ex // CaseUnion[B[bid_, __] :> bid];
@@ -564,7 +595,6 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
 ]
 
 (* ## Export to TikZ *)
-
 (*
 Take a graph defined by edges (pairs of nodes) and produce
 coordinates for all vertices by calling Graphviz (sfpd).
@@ -679,7 +709,8 @@ Module[{toremove, shrinkgr, vimap},
   ];
 ]
 
-(* Export to FIRE & LiteRed
+(*
+ * ## Export to FIRE & LiteRed
  *)
 
 TrailingIrr[denominators_] := denominators /. {___, trail:Longest[den[_, _, irr] ...]} :> Length[{trail}]
@@ -776,8 +807,12 @@ Module[{tmpdir, props},
   Print["* Done with everything"];
 ]
 
-(* Interface to pySecDec *)
+(*
+ * ## Interface to pySecDec
+ *)
 
+(* Convert an integral name (`B` notation) into a filename.
+ *)
 SecDecIntegralName[integral_B] := integral //
   ToString //
   StringReplace[" " -> ""] //
@@ -786,6 +821,9 @@ SecDecIntegralName[integral_B] := integral //
   StringReplace["]" -> ""] //
   StringReplace["-" -> "m"]
 
+(* Prepare `*generate.py` files in a given directory for the
+ * given list of integrals.
+ *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
 Module[{name, basisid, indices, basis, integral, p, m},
   Quiet[CreateDirectory[basedir], {CreateDirectory::filex}];
@@ -850,6 +888,9 @@ Module[{name, basisid, indices, basis, integral, p, m},
     {integral, integrals}];
 ]
 
+(* Compile the integration libraries for a list of integrals in
+ * a directory previously prepared via [[SecDecPrepare]].
+ *)
 SecDecCompile[basedir_String, integrals_List] := Module[{name, integral},
   Do[
     name = SecDecIntegralName[integral];
@@ -860,6 +901,12 @@ SecDecCompile[basedir_String, integrals_List] := Module[{name, integral},
     {integral, integrals}];
 ]
 
+(* Integrate a set of integrals at a given phase-space point
+ * given by a list of variables. The variables come in the same
+ * order as the "variables" key of the basis. The direcory
+ * should have already been prepared with [[SecDecPrepare]] and
+ * [[SecDecCompile]].
+ *)
 SecDecIntegrate[basedir_String, integrals_List, variables_List] := Module[{name, integral},
   integrals //
     Map[(

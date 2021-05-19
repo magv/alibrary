@@ -222,6 +222,16 @@ CutDiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{e1, e2, x},
   Join[e1 // DeleteCases[_ <-> _EE],
    e2 /. SS -> SS2 /. II -> II2 /. Cases[e1, (i_ <-> e_EE) :> ((x_ <-> e) :> Style[x <-> i, Dashed])]]
 ]
+DiagramToSvg[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
+  tmp = MkTemp["diavis", ".gv"];
+  pdf = tmp <> ".svg";
+  Export[tmp, DiagramToGraphviz[d], "String"];
+  Run["neato -Tsvg -o", pdf, tmp];
+  result = ReadString[pdf];
+  DeleteFile[{tmp, pdf}];
+  If[MatchQ[result, $Failed], Error["Failed to get: ", pdf];];
+  result
+]
 DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
   tmp = MkTemp["diavis", ".gv"];
   pdf = tmp <> ".pdf";
@@ -343,6 +353,9 @@ Amplitude[V[_, "gcC", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   -gs colorf[adj[fi1], adj[fi2], adj[fi3]] momentum[-p3, lor[fi1]]
 Amplitude[V[_, "AqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQ[flv[fi2]] \
+  gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
+Amplitude[V[_, "AtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQt[flv[fi2]] \
   gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
 Amplitude[V[_, "ZqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   (* gz *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] (
@@ -1041,73 +1054,7 @@ PartialFraction[ex_, loopmom_List, extmom_List] :=
     ]&
   ]&,
   ex]
-(* > CompleteIBPBasis[{den[l1], den[q-l1]}, {l1, l2}, {q}, 9]
- * IBPBasis[9, {l1, l2}, {q}, {den[l1], den[-l1 + q], den[l2, 0, irr], den[l1 + l2, 0, irr], ...
- *)
-CompleteIBPBasis[denominators_List, loopmom_List, extmom_List, bid_] :=
-  Module[{L, p, k, k1, k2, E, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxadd, dens},
-    L = loopmom // Map[DropLeadingSign] // Apply[Alternatives];
-    E = Join[loopmom, extmom] // Map[DropLeadingSign] // Apply[Alternatives];
-    dens = denominators;
-    nums = dens /. den[p_] :> p^2 /. den[p_, m2_, ___] :> p^2 - m2 // Expand;
-    nums = nums /. (l : L)^2 :> Dot[l, l] /. (l : L) (k : L | E) :>
-         Dot @@ Sort[{l, k}] /. (k1 : E) (k2 : E) :>
-        sp @@ Sort[{k1, k2}] /. (k : E)^2 :> sp[k];
-    vars = Tuples[{loopmom, Join[loopmom, extmom]}] //
-       Map[DropLeadingSign /* Sort /* Apply[Dot]] // Union;
-    (*Print["Independent scalar products: ",Length[vars],", ", vars];*)
-    If[nums =!= {},
-      {c, mx} = CoefficientArrays[nums, vars] // Normal;
-      (* nums == c + mx.vars *)
-      If[MatrixRank[mx] =!= Length[mx],
-        Print["nums=",nums];
-        Print["vars=",vars];
-        Print[c];
-        Print[mx];
-        Print[MatrixRank[mx]];
-       Error["CompleteIBPBasis: denominators ", denominators, " are already linearly dependent"]
-      ];
-      ,
-      {c, mx} = {{}, {}};
-    ];
-    (*Print["Need ",Length[vars]-Length[mx]," more denominators"];*)
-    candidatemoms =
-     Subsets[Join[loopmom, extmom], {1, Infinity}] //
-       Map[Apply[Plus] /* DropLeadingSign] // Select[NotFreeQ[L]];
-    (*Print["Candidate irr denominators: ", candidatemoms];*)
-    While[Length[vars] > Length[mx] && Length[candidatemoms] > 0,
-     numadd =
-      Expand[candidatemoms[[1]]^2] /. (l : L)^2 :>
-           Dot[l, l] /. (l : L) (k : L | E) :>
-          Dot @@ Sort[{l, k}] /. (k1 : E) (k2 : E) :>
-         sp @@ Sort[{k1, k2}] /. (k : E)^2 :> sp[k];
-     {cadd, mxadd} = CoefficientArrays[numadd, vars] // Normal;
-     If[MatrixRank[Append[mx, mxadd]] === Length[mx] + 1,
-      (*Print["Add: ",candidatemoms[[1]]];*)
-      AppendTo[mx, mxadd];
-      AppendTo[dens, den[candidatemoms[[1]], 0, irr]];
-      AppendTo[nums, numadd];
-      AppendTo[c, cadd];
-      (*c+mx.vars==nums*)
-      ,
-      (*Print["Can't add: ",candidatemoms[[1]]];*)
-      candidatemoms = candidatemoms[[2 ;;]];
-      ];
-     ];
-    IBPBasis[
-     (*ID*)bid,
-     (*Loom momenta*)loopmom // DropLeadingSign,
-     (*Ext momenta*)extmom // DropLeadingSign,
-     (*Den list*)dens,
-     (*Den map*)
-     MapIndexed[#1 -> bden @@ #2 &, dens] // DeleteCases[den[_, _, irr] -> _] //
-        ReplaceAll[(den[p_, x___] -> y_) :> {den[p, x] -> y, den[-p, x] -> y}] // Flatten // Association,
-     (*Dot map*)
-     Inverse[mx].(Map[1/bden[#] &, Range[Length[mx]]] - c) //
-        Bracket[#, _bden, Factor] & // MapThread[Rule, {vars, #}] & // Join[#, # /. Dot[a_, b_] :> Dot[b,a]]& //
-      Association
-    ]
-  ]
+
 IBPBasisSanityCheck[ibpbasis_List] := (Map[IBPBasisSanityCheck, ibpbasis];)
 IBPBasisSanityCheck[IBPBasis[bid_, loopmom_List, extmom_List, dens_List, denmap_, dotmap_]] :=
 Module[{normaldens, i, dots, p1, p2, p, m},
@@ -1392,30 +1339,6 @@ IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
 
 NormalizeDens[ex_] := ex /. den[p_, x___] :> den[DropLeadingSign[p], x] /. den[p_, 0] :> den[p]
 
-(* Kira sorts bases by name, in stead of adhering to the order
- * of definition. We shall make sure that both the numerical
- * and the lexicographic orders match, which will prevent Kira
- * from messing it up.
- *)
-KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
-
-MkKiraKinematicsYaml[filename_, extmom_List] := MkKiraKinematicsYaml[filename, extmom, {sp[q]->qq}]
-MkKiraKinematicsYaml[filename_, extmom_List, sprules_List] :=
-  MkFile[filename,
-    "kinematics:\n",
-    " incoming_momenta: [", extmom // Riffle[#, ", "]&, "]\n",
-    " kinematic_invariants:\n",
-    "  - [qq, 2]\n",
-    "  - [x, 0]\n",
-    " scalarproduct_rules:\n",
-    (*"  - [[q,q], qq]\n",*)
-    sprules // MapReplace[
-      (sp[p_] -> v_) :> {"  - [[", p//InputForm, ",", p//InputForm, "], ", v//InputForm, "]\n"},
-      (sp[p1_, p2_] -> v_) :> {"  - [[", p1//InputForm, ",", p2//InputForm, "], ", v//InputForm, "]\n"}
-    ],
-    " symbol_to_replace_by_one: qq"
-  ];
-
 TopSectors[idxlist_List] := Module[{tops, sector2r, sector2s, sector2d, s2sectors, int, sector, r, s, d, sectors, done, i, ss},
   tops = idxlist // Map[IndicesToS] // Max[#, 1]&;
   sector2r = <||>;
@@ -1482,79 +1405,6 @@ TopSectors[idxlist_List] := Module[{tops, sector2r, sector2s, sector2d, s2sector
     {sector, sectors}]
 ]
 
-MkKiraIntegralFamiliesYaml[filename_, ibpbasis_List, topsectors_] := Module[{loopmom, extmom, dens, basis},
-  MkFile[filename,
-    "integralfamilies:\n",
-    Table[
-      loopmom = basis[[2]];
-      extmom = basis[[3]];
-      dens = basis[[4]];
-      {
-        "  - name: \"", KiraBasisName[basis[[1]]], "\"\n",
-        (*"    # ", dens // Riffle[#, " "]&, "\n",*)
-        "    loop_momenta: [", Riffle[loopmom, ", "], "]\n",
-        "    top_level_sectors: [", dens // MapReplace[den[_, _, irr] -> 0, _den -> 1] // IndicesToSectorId, "]\n",
-        "#    magic_relations: true\n",
-        "    propagators:\n",
-        dens // Map[Replace[{
-          den[p_] | den[p_, 0, ___] :> {"      - [\"", CForm[p], "\", 0]\n"},
-          den[p_, m_, ___] :> {"      - [\"", CForm[p], "\", \"", CForm[m /. sp[q] -> qq], "\"]\n"},
-          d_ :> Error["MkKiraConfig: bad denominator form: ", d]
-        }]],
-        "    cut_propagators: [",
-        Riffle[Range[Length[dens]] // Select[MatchQ[dens[[#]], den[_, _, cut]]&], ", "],
-        "]\n"
-      }
-      ,
-      {basis, ibpbasis}]
-  ];
-]
-
-MkKiraJobsYaml[filename_, bids_List, topsectors_] := Module[{bid, sector},
-  MkFile[filename,
-    "jobs:\n",
-    " - reduce_sectors:\n",
-    "    reduce:\n",
-    Table[
-        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [", sector["id"], "], r: ", sector["r"], ", s: ", sector["s"], "}\n"}
-        ,
-        {bid, bids},
-        {sector, topsectors[bid]}],
-    "    select_integrals:\n",
-    "     select_mandatory_list:\n",
-    Table[
-        {"      - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"}
-        ,
-        {bid, bids}],
-    "#     select_mandatory_recursively:\n",
-    Table[
-        {
-        "#      - {topologies: [", KiraBasisName[bid],
-            "], sectors: [", sector["id"],
-            "], r: ", sector["r"],
-            ", s: ", sector["s"],
-            ", d: ", sector["d"], "}\n"},
-        {bid, bids},
-        {sector, topsectors[bid]}],
-    "    integral_ordering: 8\n",
-    "    run_symmetries: true\n",
-    "    run_initiate: true\n",
-    "    run_triangular: true\n",
-    "    run_back_substitution: true\n",
-    " - kira2math:\n",
-    "    target:\n",
-    Table[
-      {"     - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"},
-      {bid, bids}],
-    Table[
-        {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [", sector["id"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
-        {bid, bids},
-        {sector, topsectors[bid]}],
-    "    reconstruct_mass: false\n",
-    "    integral_ordering: 8\n"
-  ];
-]
-
 KiraIBP[ampb_, ibpbasis_List, spmap_List] := Module[{blist, confdir, result},
   confdir = FileNameJoin[{$TemporaryDirectory, MkString["kira.", Environment["USER"], ".", $ProcessID]}];
   EnsureNoDirectory[confdir];
@@ -1578,66 +1428,6 @@ KiraIBP[ampb_, ibpbasis_List, spmap_List] := Module[{blist, confdir, result},
   result = KiraApplyResults[ampb, confdir, ibpbasis];
   EnsureNoDirectory[confdir];
   result
-]
-
-MkKiraConfig[exb_, ibpbasis_List, spmap_List, confdir_String] := Module[{extmom, blist, topsectors, idxlist, bid},
-  EnsureNoDirectory[confdir];
-  EnsureDirectory[confdir <> "/config"];
-  extmom = ibpbasis[[1, 3]];
-  blist = CaseUnion[exb, _B];
-  topsectors = Table[
-    idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
-    MkFile[confdir <> "/" <> KiraBasisName[bid] <> ".integrals",
-      idxlist // Map[{"- [", Riffle[#, ","], "]\n"}&]
-    ];
-    bid -> (idxlist // TopSectors // Sort)
-    ,
-    {bid, ibpbasis[[;;,1]]}] // Association;
-  MkKiraKinematicsYaml[confdir <> "/config/kinematics.yaml", extmom, spmap];
-  MkKiraIntegralFamiliesYaml[confdir <> "/config/integralfamilies.yaml", ibpbasis, topsectors];
-  MkKiraJobsYaml[confdir <> "/jobs.yaml", ibpbasis[[;;,1]], topsectors];
-]
-
-MkKiraMultiConfig[exb_, ibpbasis_List, spmap_List, confdir_String] := Module[{basisgroups, group, basis},
-  EnsureNoDirectory[confdir];
-  basisgroups = ibpbasis // GroupBy[IBPBasisStructureId];
-  Do[
-    bases = basisgroups[group];
-    MkKiraConfig[exb // CaseUnion[B[Alternatives @@ bases[[;;,1]], ___]], bases, spmap, confdir <> "/" <> group];
-    ,
-    {group, basisgroups // Keys}];
-]
-
-KiraApplyResults[ex_, confdir_String, ibpbasis_List] :=
-Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
-  bids = ex // CaseUnion[B[bid_, __] :> bid];
-  bvarmap = Table[
-    bvar = KiraBasisName[bid] // ToExpression;
-    (bvar[idx__] :> B[$BID, idx]) /. $BID -> bid
-    ,
-    {bid, Length[ibpbasis]}
-  ];
-  Do[
-    Print["* Loading IBP tables for basis ", bid];
-    ibpmapfiles = MkString[confdir, "/results/", KiraBasisName[bid], "/kira_", KiraBasisName[bid], ".integrals.m"] // FileNames;
-    FailUnless[Length[ibpmapfiles] === 1];
-    table = ibpmapfiles // First // SafeGet;
-    table = table /. bvarmap // TM;
-    BMapLoad[bmap, table] // TM;
-    (*
-    Print["Supposed Kira masters:"];
-    Print[MkString[confdir, "/results/", KiraBasisName[bid], "/masters.final"] // ReadString // StringTrim];
-    *)
-    Print["Masters: "];
-    BMapMasters[bmap] // Map[Print["- ", #]&];
-    Print["* Applying the IBP tables for basis ", bid];
-    table = {};
-    exx = exx // BMapApply[bmap];
-    BMapClear[bmap];
-    ,
-    {bid, bids}
-  ];
-  exx
 ]
 
 LoadKiraSectorMappings[nmomenta_Integer, filename_String] :=
@@ -1765,57 +1555,6 @@ Module[{densets, uniqdensets, densetindices, ibpbasis, confdir, dens, topsector,
   (uniqdensetmaps // Map[DeleteCases[a_->a_]])[[densetindices]]
 ]
 
-(* Return a list of momenta maps, such that applying them to
- * the list of feynman integral families makes symmetries and
- * subtopology relations explicit. So, families that are symmetric
- * will have identical sets of denominators after the maps are
- * applied. Families that are symmetric to a subtopology of a
- * bigger family will have a subsets of the denominators.
- *
- * The families are defined by their set of den[]s.
- *
- * You can use UniqueSupertopologyMapping[] to figure out the
- * topmost supertopologies after this.
- *)
-SymmetryMaps[families_List, loopmom_List, extmom_List] :=
-Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
-  densets = families // NormalizeDens // MapWithCliProgress[
-    CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopmom]]
-  ];
-  {uniqdensets, densetindices} = UniqueSupertopologyMapping[densets];
-  Print["Got a total of ", uniqdensets//Length, " unique denominator sets"];
-  uniqdensetmaps = RunThrough["./feynson symmetrize -j4 -q -", {
-    uniqdensets // Map[MapReplace[den[p_] :> p^2, den[p_, m_] :> p^2-m, den[p_, m_, cut] :> p^2-m-CUTM]],
-    loopmom,
-    {{q^2,1}}
-  }] // Map[Map[Apply[Rule]]];
-  (*
-  FailUnless[
-    Count[uniqdensetmaps, {}]
-    <=
-    MapThread[ReplaceAll, {uniqdensets, uniqdensetmaps}] // NormalizeDens // ExpandAll // UniqueSupertopologyMapping // #[[1]]&//Length
-    ==
-    MapThread[ReplaceAll, {densets, uniqdensetmaps[[densetindices]]}] // NormalizeDens // ExpandAll // UniqueSupertopologyMapping // #[[1]]&//Length
-  ];
-  *)
-  uniqdensetmaps[[densetindices]]
-];
-(* Compute SymmetryMaps[], apply them, and return the result. *)
-SymmetrizeAmplitudes[families_List, loopmom_List, extmom_List] :=
-  MapThread[ReplaceAll, {families, SymmetryMaps[families, loopmom, extmom]}]
-
-(* Same, but guarantee order. *)
-SymmetryMapsX[families_List, loopmom_List, extmom_List, sprules_] :=
-Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
-  densets = families // NormalizeDens // Map[
-    CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopmom]]
-  ];
-  densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
-  RunThrough["tee feynson.in", {densets, loopmom, sprules // Map[Apply[List]]}];
-  RunThrough["./feynson symmetrize -j4 -q -", {densets, loopmom, sprules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
-];
-SymmetryMapsX[families_List, loopmom_List, extmom_List] := SymmetryMapsX[families, loopmom, extmom, {q^2->1}]
-
 (* Out of a list of expressions choose the ones that can be
  * mappend into a given IBP basis by a symmetry transformation,
  * and return them transformed.
@@ -1825,7 +1564,7 @@ SymmetryMapsX[families_List, loopmom_List, extmom_List] := SymmetryMapsX[familie
 MapToBasis[IBPBasis[bid_, loopmom_List, extmom_List, dens_List, denmap_, dotmap_], exprs_List] :=
 Module[{densets, symmaps},
   densets = exprs // Map[CaseUnion[_den] /* Select[NotFreeQ[Alternatives @@ loopmom]]];
-  symmaps = Join[{dens // DeleteCases[den[_,_,irr]]}, densets] // SymmetryMapsX[#, loopmom, extmom]&;
+  symmaps = Join[{dens // DeleteCases[den[_,_,irr]]}, densets] // SymmetryMaps[#, loopmom, extmom]&;
   FailUnless[symmaps[[1]] === {}];
   symmaps = symmaps[[2;;]];
   MapThread[If[SubtopologyQ[dens, #1/.#2//NormalizeDens], #3/.#2//NormalizeDens, Nothing]&, {densets, symmaps, exprs}]
@@ -1910,24 +1649,19 @@ LoadFullKiraBMap[bmap_Symbol, basedir_String, ibpbasis_List] := Module[{bvarmap,
   MkString[basedir, "/*/results/*/kira_*.m"] // FileNames // Map[SafeGet /* ReplaceAll[bvarmap] /* (BMapLoad[bmap, #]&)];
 ]
 
-ZeroSectors[IBPBasis[bid_, loopmom_List, extmom_List, dens_List, denmap_, dotmap_], spmap_] :=
-  RunThrough["./feynson zero-sectors -sqj3 -", {
-      dens /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUTM /. den[p_, m_, irr] :> p^2-m /. sp[q]->q^2,
-      dens /. den[_, _, cut] -> 1 /. den[___] -> 0,
-      loopmom,
-      spmap /. Dot->Times /. Rule->List
-    }] // Map[B[bid, Sequence@@SectorIdToIndices[#, Length[dens]]]&]
-
-ZeroSectors[b_IBPBasis] := ZeroSectors[b, {q^2->1}]
-
-ZeroSectorPattern[b_IBPBasis, spmap_] := ZeroSectors[b, spmap] //
-  MapAt[Replace[{0->_?NonPositive,1->_}], #, {;;, 2;;}]& // Apply[Alternatives]
-
+(* Is a set of denominators a subtopology of a different set?
+ * Subtopology differs from just a subset by the threatment of
+ * cut denominators: a denominator set is only a subtopology if
+ * the set of cuts is the same.
+ *)
 SubtopologyQ[superdenset_List, denset_List] := And[
     Count[superdenset, den[_, _, cut]] === Count[denset, den[_, _, cut]],
     SubsetQ[superdenset, denset]
   ]
 
+(* Same as [[UniqueSupersetMapping]], but using [[SubtopologyQ]]
+ * instead of `SubsetQ`.
+ *)
 UniqueSupertopologyMapping[densets_List] := UniqueSupersetMapping[densets, SubtopologyQ]
 
 DenMassTerm[den[p_]] := 0

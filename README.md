@@ -46,8 +46,12 @@ work in progress. Sorry.
 ## Documentation
 
 The documentation currently lives at [magv.github.io/alibrary]
-and consists of the annotated [alibrary.m] and [utils.m]
-files. That’s not much, but the plan is to improve it.
+and consists of the following annotated source files:
+
+* [alibrary.m], the main library;
+* [utils.m], the generic Mathematica helper functions.
+
+That’s not much, but the plan is to improve it.
 
 [magv.github.io/alibrary]: https://magv.github.io/alibrary/
 [alibrary.m]: https://magv.github.io/alibrary/alibrary.html

@@ -3,22 +3,20 @@
 # Needed packages:
 #   pip3 install mistletoe pygments pygments-mathematica
 
-import sys
-sys.path = [p for p in sys.path if ".local" in p] + [p for p in sys.path if ".local" not in p]
-
 # Docommentation.
 
+import glob
+import io
 import mistletoe
 import mistletoe.span_token
+import os
+import os.path
 import pygments
 import pygments.formatters
 import pygments.lexers
 import pygments.token
-import glob
-import os.path
-import os
-import io
 import re
+import sys
 
 # Markdown (i.e. comment) parsing and rendering
 
@@ -35,8 +33,8 @@ class CrossReferenceToken(mistletoe.span_token.SpanToken):
     def __init__(self, match):
         self.target = match.group(1)
 
-def text_to_id(text):
-    return text.replace(" ", "")
+def name_to_id(text):
+    return "".join(word.capitalize() for word in re.split("\\W+", text))
 
 class DokPreRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref):
@@ -48,7 +46,7 @@ class DokPreRenderer(mistletoe.HTMLRenderer):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
         self._toc.append((token.level, title))
-        self._xref[title] = (self._url, "#" + text_to_id(title))
+        self._xref[title] = (self._url, "#" + name_to_id(title))
         return ""
 
 class DokRenderer(mistletoe.HTMLRenderer):
@@ -63,10 +61,11 @@ class DokRenderer(mistletoe.HTMLRenderer):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
         self._headers.append((token.level, title))
-        return f'<h{token.level} id=\"{text_to_id(title)}\">{inner}</h{token.level}>'
+        return f'<h{token.level} id=\"{name_to_id(title)}\">{inner}</h{token.level}>'
     def render_cross_reference_token(self, token):
-        if token.target in self._xref:
-            target, hash = self._xref[token.target]
+        xrefvalue = self._xref.get(token.target)
+        if xrefvalue is not None:
+            target, hash = xrefvalue
             target = relurl(target, self._url)
             inner = self.render_inner(token)
             return f"<a href=\"{target}{hash}\">{inner}</a>"
@@ -156,23 +155,24 @@ def preparse_mma(data, xref, url, toc):
     tok_comm = (pygments.token.Token.Comment,)
     for i in range(len(tokens)):
         tok, value, lin, col = tokens[i]
+        if tok in tok_warn:
+            print(f"Warning: syntax error at {url}:{lin}:{col}, token {value!r}")
         if col == 1 and tok in tok_comm:
             if i+2 < len(tokens):
                 tok2, value2, _, _ = tokens[i+1]
                 tok3, value3, _, _ = tokens[i+2]
                 if value2 == "\n" and tok3 in tok_func:
-                    if tok3 not in xref:
+                    if value3 not in xref:
                         xref[value3] = (url, "#" + value3)
                         toc.append((3, value3))
                         yield Token_Doc, f"<h3 id=\"{value3}\">{value3}[]</h3>\n"
                     else:
-                        print(f"Already defined: {value3}")
+                        xurl, xhash = xref[value3]
+                        print(f"Warning: name {value3!r} at {url}:{lin} was already defined in {xurl}")
         if col == 1 and tok in tok_comm:
             value = strip_comment(value)
             toc.extend(markdown_headers(value, url, xref))
             yield Token_Doc, value
-        #if tok in tok_warn:
-        #    print(f"Warning: syntax error in {filename!r} at {lin}:{col}: {value!r}")
         else:
             yield tok, value
 
@@ -211,7 +211,7 @@ def format_toc(f, toc):
             f.write("</li><li>\n")
         else:
             f.write("</li><li>\n")
-        f.write(f" <a href=\"#{text_to_id(title)}\">{title}</a>\n")
+        f.write(f" <a href=\"#{name_to_id(title)}\">{title}</a>\n")
     while level > level0:
         f.write("</li></ul>\n")
         level -= 1
@@ -244,12 +244,16 @@ def format_mma(f, xref, url, tokens, toc):
             f.write(markdown_render(value, url, xref, toc))
         else:
             cls = towrap.get(tok, None)
-            if tok == pygments.token.Token.Name.Variable and value in xref:
-                refurl, hash = xref[value]
-                refurl = relurl(refurl, url)
-                f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
-            #if tok == pygments.token.Token.Name:
-            elif cls is not None:
+            if tok == pygments.token.Token.Name.Variable:
+                if value in xref:
+                    refurl, hash = xref[value]
+                    refurl = relurl(refurl, url)
+                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
+                    continue
+            if tok == pygments.token.Token.Name.Builtin:
+                f.write(f"<a class=\"{cls}\" href=\"https://reference.wolfram.com/language/ref/{value}.html\" rel=\"nofollow\">{value}</a>")
+                continue
+            if cls is not None:
                 f.write(f"<span class=\"{cls}\">{value}</span>")
             else:
                 f.write(value)
@@ -317,6 +321,7 @@ ul ul { text-align: left; }
 ul ul li { display: inline; }
 ul ul li:after { content: " * "; color: #557; }
 ul ul li:last-child:after { content: ""; }
+hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: black; color: white; }
  pre { background: #111; border-left-color: #1f1f2f; }
