@@ -406,19 +406,29 @@ TimeIt[ex_] := Module[{t, niter = 2},
  * Make sure no file with this name exists.
  *)
 MkTemp[prefix_, suffix_] := Module[{i, fn, alphabet},
-    alphabet = Characters["abcdefghijklmnopqrstuvwxyz0123456789"];
-    While[True,
-        i = RandomSample[alphabet, 8];
-        fn = FileNameJoin[{$TemporaryDirectory, MkString[prefix, ".", Environment["USER"], ".", $ProcessID, ".", i, suffix]}];
-        If[Not[FileExistsQ[fn]], Return[fn]];
-    ]]
+  alphabet = Characters["abcdefghijklmnopqrstuvwxyz0123456789"];
+  While[True,
+    i = RandomSample[alphabet, 8];
+    fn = FileNameJoin[{$TemporaryDirectory, MkString[prefix, ".", Environment["USER"], ".", $ProcessID, ".", i, suffix]}];
+    If[Not[FileExistsQ[fn]], Return[fn]];
+  ]
+]
 
-(* Make sure a directory exists. Create it if it doesn't. *)
+(* Create a new temporary directory, with the name of the form
+ * prefix.XXXX.suffix.
+ *)
+MkTempDirectory[prefix_, suffix_] := Module[{dirname},
+  dirname = MkTemp[prefix, suffix];
+  EnsureDirectory[dirname];
+  dirname
+]
+
+(* Make sure a directory exists. Create it if it doesn’t. *)
 EnsureDirectory[dirs__] := Module[{dir},
   Do[Quiet[CreateDirectory[dir], {CreateDirectory::filex}];, {dir, {dirs}}];
 ]
 
-(* Make sure a directory doesn't exist. Remove it if it does. *)
+(* Make sure a directory doesn’t exist. Remove it if it does. *)
 EnsureNoDirectory[dirs__] := Module[{dir},
   Do[Quiet[DeleteDirectory[dir, DeleteContents->True], {DeleteDirectory::nodir}];, {dir, {dirs}}];
 ]
