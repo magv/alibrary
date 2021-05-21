@@ -71,7 +71,7 @@ class DokRenderer(mistletoe.HTMLRenderer):
             return f"<a href=\"{target}{hash}\">{inner}</a>"
         elif token.target == "table of contents":
             with io.StringIO() as f:
-                format_toc(f, [item for item in self._toc if item not in self._headers])
+                format_toc(f, [item for item in self._toc if item not in self._headers], self._xref, self._url)
                 return f.getvalue()
         else:
             print(f"WARNING: missing x-ref: {token.target!r}")
@@ -195,7 +195,7 @@ def relurl(url, baseurl):
     if url[-1] == "index.html": url = url[:-1] + [""]
     return "/".join([".."] * (len(baseurl) - n - 1) + url[n:])
 
-def format_toc(f, toc):
+def format_toc(f, toc, xref, url):
     level0 = min(lvl for lvl, title in toc) - 1
     f.write("<nav>\n")
     level = level0
@@ -211,7 +211,9 @@ def format_toc(f, toc):
             f.write("</li><li>\n")
         else:
             f.write("</li><li>\n")
-        f.write(f" <a href=\"#{name_to_id(title)}\">{title}</a>\n")
+        refurl, hash = xref[title]
+        refurl = relurl(refurl, url)
+        f.write(f" <a href=\"{refurl}{hash}\">{title}</a>\n")
     while level > level0:
         f.write("</li></ul>\n")
         level -= 1
