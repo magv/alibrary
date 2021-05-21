@@ -97,12 +97,6 @@ ExpandScalarProducts[mompattern_] := ReplaceAll[sp[a_, b_] :> (
   }]
 )]
 
-FailUnless[
-  ExpandScalarProducts[x|y|z|q][sp[2x+3y, z]] === 2 sp[x,z] + 3 sp[y,z],
-  ExpandScalarProducts[x|y|z|q][sp[x+y, x-y]] === sp[x,x] - sp[y,y],
-  ExpandScalarProducts[x|y|z|q][sp[a x + b y, c x]] === a c sp[x,x] + b c sp[x,y]
-]
-
 (* Convert an expression with `sp` and `den` to `B` notation in
  * a given basis. This is the slow version of it; the faster one
  * uses FORM: see [[AmpFormRun]] and [[FormFnToB]].
@@ -275,6 +269,15 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
     {Plus@@rels, Plus@@(rels*rels), #["denominators"][[;;,1]]//Map[Terms/*Length]//Apply[Plus]}
   )&]//First
 ]
+
+(* Apply a replacement map to the invariants of a basis.
+ *)
+IBPBasisMapInvariants[basis_, invmap_] :=
+  basis //
+    Append["denominators" -> (basis["denominators"] /. invmap)] //
+    Append["sprules" -> (basis["sprules"] /. invmap)] //
+    Append["invariants" -> (basis["invariants"] /. invmap // CaseUnion[_Symbol])]
+IBPBasisMapInvariants[bases_List, invmap_] := bases // Map[IBPBasisMapInvariants[#, invmap]&]
 
 InvariantMapUnderMomentaPermutation[basis_, momperm_] :=
 Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
@@ -548,8 +551,8 @@ MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
  *)
 MkKiraConfig[dirname_, bases_List, blist_] :=
 Module[{bid, bids, bid2topsector, idxlist},
-  If[Not[FileExistsQ[dirname]], CreateDirectory[dirname]];
-  If[Not[FileExistsQ[dirname <> "/config"]], CreateDirectory[dirname <> "/config"]];
+  EnsureDirectory[dirname];
+  EnsureDirectory[dirname <> "/config"];
   bids = blist // CaseUnion[B[bid_, ___] :> bid];
   bid2topsectors = Table[
     idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
@@ -826,7 +829,7 @@ SecDecIntegralName[integral_B] := integral //
  *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
 Module[{name, basisid, indices, basis, integral, p, m},
-  Quiet[CreateDirectory[basedir], {CreateDirectory::filex}];
+  EnsureDirectory[basedir];
   Do[
     name = SecDecIntegralName[integral];
     Print["* Making ", basedir, "/", name, ".*"];
@@ -923,3 +926,165 @@ SecDecIntegrate[basedir_String, integrals_List, variables_List] := Module[{name,
 ]
 SecDecIntegrate[basedir_String, integral_, variables_List] :=
   SecDecIntegrate[basedir, {integral}, variables] // Only // #[[2]]&
+
+(*
+ * ## Dimensional recurrence
+ *)
+
+DenToNumerator[den[p_]] := sp[p,p]
+DenToNumerator[den[p_, m_, ___]] := sp[p,p] - m
+
+ExpandSP[sp[p1_]] := ExpandSP[sp[p1,p1]]
+ExpandSP[sp[p1_,p2_]] := p1*p2//Expand//Terms//MapReplace[
+  a_Symbol*b_Symbol*c_. :> Sort[sp[a,b]]*c,
+  a_Symbol^2*c_.:> sp[a,a]*c
+]//Apply[Plus]
+ExpandSP[ex_] := ex /. s_sp :> ExpandSP[s]
+
+(* “Raising” dimensional recurrence: expresses a given integral
+ * in (d-2) space-time dimensions as a linear combination of
+ * integrals in d space-time dimensions.
+ *
+ * Note that Minkowski metrics is assumed. Multiply by (-1)^L
+ * to get Euclidean.
+ *)
+RaisingDRR[ex_, basis_] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
+  loopmom = basis["loopmom"];
+  mx = Table[
+    If[i===j, 1, 1/2]
+    Sum[
+      OP[k] D[
+        basis["denominators"][[k]] // DenToNumerator // ExpandSP,
+        Sort[sp[loopmom[[i]], loopmom[[j]]]]
+      ],
+      {k, Length[basis["denominators"]]}]
+    ,
+    {i, Length[loopmom]},
+    {j, Length[loopmom]}];
+  op = Det[mx] // Bracket[#, _OP, Factor]&;
+  bid = basis["id"];
+  result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
+    OP[n_]^k_. B[bid, idx__] :> (ii = {idx}; ii[[n]] += k; Pochhammer[ii[[n]]-k,k] B[bid, Sequence@@ii])
+  ]&]&;
+  If[NotFreeQ[result, _OP], Error["Failed to replace all OPs"]];
+  (-1)^Length[loopmom] result
+]
+
+(* “Lowering” dimensional recurrence: expresses a given integral
+ * in (d+2) space-time dimensions as a linear combination of
+ * integrals in d space-time dimensions.
+ *
+ * Note that Minkowski metrics is assumed. Multiply by (-1)^L
+ * to get Euclidean.
+ *)
+LoweringDRR[ex_, basis_] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
+  extmom = basis["externalmom"];
+  loopmom = basis["loopmom"];
+  op = Det[GramMatrix[Join[loopmom, extmom]] /. basis["sprules"]] /.
+    basis["nummap"] /.
+    basis["sprules"] /.
+    bden[n_] :> 1/OP[n] //
+    Bracket[#, _B, Together]&;
+  bid = basis["id"];
+  result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
+    OP[n_]^k_. B[bid, idx__] :> (ii = {idx}; ii[[n]] -= k; B[bid, Sequence@@ii])
+  ]&]&;
+  If[NotFreeQ[result, _OP], Error["Failed to replace all As"]];
+  (
+    (-2)^Length[loopmom]
+    1/Det[GramMatrix[extmom] /. basis["sprules"]]
+    1/Pochhammer[d-Length[extmom]-Length[loopmom]+1, Length[loopmom]]
+    result
+  )
+]
+
+(*
+ * ## Integral differentiation
+ *)
+
+(* All symbols on the right-hand side of scalar product rules.
+ * Presumably names of Mandelstam variables and the like. *)
+BasisExternalInvariantSymbols[basis_] := basis[["sprules",;;,2]] // CaseUnion[_Symbol]
+
+(* All distinct `sp[p1, p2]`, for `p1` and `p2` being external
+ * momenta of a basis. *)
+BasisExternalScalarProducts[basis_] := Module[{p1, p2},
+  splist = Table[
+    Sort[sp[p1,p2]],
+    {p1, basis["externalmom"]},
+    {p2, basis["externalmom"]}
+  ] // Apply[Join] // Union
+]
+
+(* Gram matrix, `|pi * pj|`, for a given list of `pi`. *)
+GramMatrix[vectors_List] := Module[{p,q}, Table[Sort[sp[p,q]], {p, vectors}, {q, vectors}]]
+
+(* Gram matrix, `|pi * pj|`, for a given basis. *)
+BasisGramMatrix[basis_] := GramMatrix[basis["externalmom"]] /. basis["sprules"] // Together
+
+(* The inverse of Gram matrix for a given basis. *)
+BasisInvGramMatrix[basis_] := Inverse[BasisGramMatrix[basis]] // Together
+
+(* The inverse of Gram matrix for a given basis, represented
+ * as a nested Association. This is so it could be indexed by
+ * momenta as `BasisInvGramMatrixMap[basis][p1,p2]`. *)
+BasisInvGramMatrixMap[basis_] := BasisInvGramMatrixMap[basis] = Module[{igm, emom, i, j},
+  igm = BasisInvGramMatrix[basis];
+  emom = basis["externalmom"];
+  Table[
+    emom[[i]] -> Association[
+      Table[emom[[j]] -> igm[[i,j]], {j, Length[emom]}]
+    ]
+    ,
+    {i, Length[emom]}
+  ] // Association
+]
+
+
+ClearAll[BDiffByMomentum, BDiffByMass, BDiffBySP, BDiffByInv, BDiff];
+BDiffByMomentum[basis_, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, ddens},
+  dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
+  ddens = dens // MapReplace[
+    {d:den[mom_, ___], n_} :> -n d^(n+1) 2 Sort[sp[mom, pmul]] D[mom, p]
+  ];
+  Sum[
+    Product[If[i === k, ddens[[i]], dens[[i,1]]^dens[[i,2]]], {i, Length[dens]}]
+    ,
+    {k, Length[dens]}]
+]
+BDiffByMass[basis_, indices_List, mass_Symbol] := Module[{dens, ddens},
+  dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
+  ddens = dens // MapReplace[
+    {d:den[mom_], n_} :> -n d^(n+1) D[ExpandSP[sp[mom, mom]], mass]0,
+    {d:den[mom_, m_, ___], n_} :> -n d^(n+1) D[ExpandSP[sp[mom, mom]]-m, mass]
+  ];
+  Sum[
+    Product[If[i === k, ddens[[i]], dens[[i,1]]^dens[[i,2]]], {i, Length[dens]}]
+    ,
+    {k, Length[dens]}]//ToB[basis]
+]
+BDiffBySP[basis_, indices_List, s:sp[p1_Symbol, p1_Symbol]] := BDiffBySP[basis, indices, s] =
+Module[{igm, pi},
+  Print["BDiff ", basis["id"], indices, p1];
+  igm = BasisInvGramMatrixMap[basis];
+  1/2 Sum[igm[pi,p1] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
+]
+BDiffBySP[basis_, indices_List, s:sp[p1_Symbol, p2_Symbol]] := BDiffBySP[basis, indices, s] =
+Module[{igm, pi},
+  Print["BDiff ", basis["id"], indices, p1,p2];
+  igm = BasisInvGramMatrixMap[basis];
+  Sum[igm[pi,p2] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
+]
+BDiffByInv[basis_, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
+  Print["BDiff ", basis["id"], indices, inv];
+  FailUnless[Length[basis["denominators"]] === Length[indices]];
+  invlist = BasisExternalInvariantSymbols[basis];
+  splist = BasisExternalScalarProducts[basis];
+  (BDiffByMass[basis, indices, inv]) + Sum[
+    ds = D[s/.basis["sprules"], inv];
+    If[ds === 0, 0, ds*BDiffBySP[basis, indices, s]],
+    {s, splist}]
+]
+BDiff[ex_, basis_, s_sp] := ex /. B[basis["id"], idx__] :> BDiffBySP[basis, {idx}, s]
+BDiff[ex_, basis_, inv_Symbol] := ex /. B[basis["id"], idx__] :> BDiffByInv[basis, {idx}, inv]
+BDiff[basis_, inv_Symbol] := BDiff[#, basis, inv]&
