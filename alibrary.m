@@ -83,6 +83,155 @@ DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldpat_] := Modul
 DiagramSign[d_Diagram, fermionpattern_] := (-1)^DiagramClosedLoops[d, fermionpattern]
 DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
 
+(* ## Diagrams to graphs *)
+
+DiagramGraphEdges[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
+  p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> II[vi1] <-> II[vi2],
+  i /. F[f_, fi_, vi_, mom_] :> SS[fi] <-> II[vi],
+  o /. F[f_, fi_, vi_, mom_] :> II[vi] <-> EE[fi]
+]
+DiagramGraph[d_Diagram] := DiagramGraphEdges[d] // Graph
+DiagramXGraph[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
+   i /. F[f_, fi_, vi_, mom_] :> {IN[fi] -> vi,
+      Text[MkString[f, "(", mom, ")"] // StringReplace[" " -> ""]],
+      Gray, Thin},
+   o /. F[f_, fi_, vi_, mom_] :> {vi -> OO[fi],
+      Text[MkString[f, "(", mom, ")"] // StringReplace[" " -> ""]],
+      Gray, Thin},
+   p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {vi1 -> vi2,
+      Text[MkString[f, "(", mom, ")"] // StringReplace[" " -> ""]],
+      Switch[f, q, Thickness[0.01], _, {}]}
+   ] // XGraph
+DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{c, defc},
+  c = <|
+    "q" -> 6, "Q" -> 6,
+    "t" -> 6, "T" -> 6,
+    "g" -> 4,
+    "c" -> 8, "C" -> 8,
+    "O" -> 10, "H" -> 10, "A" -> 10, "Z" -> 10, "s" -> 10, "S" -> 10
+  |>;
+  defc = 12;
+  MkString[
+   "digraph {\n",
+   " fontsize=12; margin=0;\n",
+   " node [shape=circle width=0.1 color=black];\n",
+   " edge [fontsize=8; colorscheme=paired12];\n",
+   i /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [width=0.05 color=gray];\n"} &],
+   o /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [width=0.05 color=gray];\n"} &],
+   i /. F[f_, fi_, vi_, mom_] :> {
+     " ", fi, " -> ", vi,
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"},
+   p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
+     " ", vi1, " -> ", vi2,
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"},
+   o /. F[f_, fi_, vi_, mom_] :> {
+     " ", vi, " -> ", fi,
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"},
+   "}\n"
+   ]
+]
+DiagramToGraphviz[CutDiagram[
+  Diagram[id1_, _, i1_List, o1_List, p1_List, v1_List], Diagram[id2_, _, i2_List, o2_List, p2_List, v2_List]
+]] := Module[{c, defc},
+  c = <|
+    "q" -> 6, "Q" -> 6,
+    "t" -> 6, "T" -> 6,
+    "g" -> 4,
+    "c" -> 8, "C" -> 8,
+    "O" -> 10, "H" -> 10, "A" -> 10, "Z" -> 10, "s" -> 10, "S" -> 10
+  |>;
+  defc = 12;
+  MkString[
+   "digraph {\n",
+   " fontsize=12; margin=0; label_scheme=2;\n",
+   " node [shape=circle width=0.1 color=black];\n",
+   " edge [fontsize=8; colorscheme=paired12];\n",
+   i1 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, "01 [fontsize=10 width=0.05 color=gray label=\"", #, "\"];\n"} &],
+   i2 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, "02 [fontsize=10 width=0.05 color=gray label=\"", #, "'\"];\n"} &],
+   v1 /. V[id_, ___] :> id // Union // Map[{" ", #, "01 [label=\"", #, "\"];\n"} &],
+   v2 /. V[id_, ___] :> id // Union // Map[{" ", #, "02 [label=\"", #, "'\"];\n"} &],
+   o1 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" \"|edgelabel|", -#, "00\" [fontsize=10 width=0.05 shape=square color=gray label=\"", #, "\"];\n"} &],
+   i1 /. F[f_, fi_, vi_, mom_] :> {
+     " ", fi, "01 -> ", vi, "01",
+     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+   },
+   i2 /. F[f_, fi_, vi_, mom_] :> {
+     " ", fi, "02 -> ", vi, "02",
+     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+   },
+   p1 /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
+     " ", vi1, "01 -> ", vi2, "01",
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"
+   },
+   p2 /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
+     " ", vi1, "02 -> ", vi2, "02",
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"
+   },
+   o1 /. F[f_, fi_, vi_, mom_] :> {
+     " ", vi, "01 -> \"|edgelabel|", -fi, "00\"",
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+   },
+   o2 /. F[f_, fi_, vi_, mom_] :> {
+     " ", vi, "02 -> \"|edgelabel|", -fi, "00\"",
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+   },
+   "}\n"
+   ]
+]
+CutDiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{e1, e2, x},
+  e1 = DiagramGraphEdges[d1];
+  e2 = DiagramGraphEdges[d2];
+  Join[e1 // DeleteCases[_ <-> _EE],
+   e2 /. SS -> SS2 /. II -> II2 /. Cases[e1, (i_ <-> e_EE) :> ((x_ <-> e) :> Style[x <-> i, Dashed])]]
+]
+DiagramToSvg[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
+  tmp = MkTemp["diavis", ".gv"];
+  pdf = tmp <> ".svg";
+  Export[tmp, DiagramToGraphviz[d], "String"];
+  Run["neato -Tsvg -o", pdf, tmp];
+  result = ReadString[pdf];
+  DeleteFile[{tmp, pdf}];
+  If[MatchQ[result, $Failed], Error["Failed to get: ", pdf];];
+  result
+]
+DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
+  tmp = MkTemp["diavis", ".gv"];
+  pdf = tmp <> ".pdf";
+  Export[tmp, DiagramToGraphviz[d], "String"];
+  Run["neato -Tpdf -o", pdf, tmp];
+  result = Import[pdf];
+  DeleteFile[{tmp, pdf}];
+  result // First
+]
+
+DiagramToTikz[Diagram[id_, _, i_List, o_List, p_List, v_List]] := Module[{es, ni, no, scale},
+  es = {
+    "q"|"u"|"d"|"c"|"s"|"t"|"b"|"x"|"y" -> "fermion",
+    "W"|"A" -> "photon",
+    "g" -> "gluon",
+    "h" -> "scalar",
+    "c" -> "ghost",
+    _ -> "edge"
+  };
+  ni = Length[i];
+  no = Length[o];
+  scale = Max[ni,no,4];
+  MkString[
+    "\\begin{tikzpicture}\n",
+    "\t\\begin{pgfonlayer}{nodelayer}\n",
+    i /. F[f_, fi_, vi_, mom_] :> {"\t\t\\node [style=blank] (", fi, ") at (0, ", scale(-1-fi)/(2 ni)//Round, ") {$", f, "(", mom, ")$};\n"},
+    o /. F[f_, fi_, vi_, mom_] :> {"\t\t\\node [style=blank] (", fi, ") at (", scale, ", ", scale(-2-fi)/(2 no)//Round, ") {$", f, "(", mom, ")$};\n"},
+    v /. V[vi_, __] :> {"\t\t\\node [style=dot] (", vi, ") at (", 1+Random[]*(scale-2)//Round, ", ", 1+Random[]*(scale-2)//Round, ") {};\n"},
+    "\t\\end{pgfonlayer}\n",
+    "\t\\begin{pgfonlayer}{edgelayer}\n",
+    i /. F[f_, fi_, vi_, mom_] :> {"\t\t\\draw [style=incoming edge] (", fi, ") to (", vi, ");\n"},
+    o /. F[f_, fi_, vi_, mom_] :> {"\t\t\\draw [style=outgoing edge] (", vi, ") to (", fi, ");\n"},
+    p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {"\t\t\\draw [style=", f /. es, "] (", vi1, ") to (", vi2, ");\n"},
+    "\t\\end{pgfonlayer}\n",
+    "\\end{tikzpicture}\n"
+  ]
+]
+
 (*
  * ## IBP Bases
  *)
@@ -598,6 +747,27 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
   exx
 ]
 
+(* Perform full IBP reduction of an expression using Kira,
+ * replacing all the `B[...]` with linear combinations of master
+ * integrals.
+ *
+ * Note that usually it’s not the best idea to run Kira from
+ * Mathematica. It is possible though.
+ *)
+KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
+  confdir = MkTempDirectory["kira", ""];
+  EnsureDirectory[confdir <> "/config"];
+  blist = ex // CaseUnion[_B];
+  MkKiraConfig[confdir, bases, blist];
+  If[Run[MkString["cd '", confdir, "' && kira --parallel=4 jobs.yaml"]] // TM // # =!= 0&,
+    EnsureNoDirectory[confdir];
+    Error["Failed to run kira"];
+  ];
+  result = KiraApplyResults[ex, confdir, bases];
+  EnsureNoDirectory[confdir];
+  result
+]
+
 (* ## Export to TikZ *)
 (*
 Take a graph defined by edges (pairs of nodes) and produce
@@ -804,12 +974,35 @@ Module[{tmpdir, props},
     "SaveSBases[\"", ExpandFileName[confdir], "/b", basis["id"], "\"];\n",
     "Print[\"* Done with SaveSBases[]\"];\n"
   ];
-  xEnsureNoDirectory[tmpdir];
+  EnsureNoDirectory[tmpdir];
   MkFile[confdir <> "/b" <> ToString[basis["id"]] <> ".pos",
     "|", LeadingIrr[basis["denominators"]] + 1, ",", Length[basis["denominators"]] - TrailingIrr[basis["denominators"]], "|"
   ];
   Print["* Done with everything"];
 ]
+
+(* Get the list of master integrals from a FIRE .tables file.
+ *)
+LoadFireMasters[filename_String] := filename // SafeGet // #[[2, ;;, 2]]& // MapReplace[{bid_, idx_List} :> B[bid, Sequence @@ idx]]
+
+(* Load IBP tables from FIRE .tables file.
+ *)
+LoadFireTables[filename_, coeff_: Identity, JoinTerms_: True] := Module[{temp, GGG, data},
+    data = SafeGet[filename];
+    temp = {GGG[##[[1]]], {GGG[##[[1]]], ##[[2]]} & /@ ##[[2]]} & /@ data[[1]];
+    Set[GGG[##[[1]]], G[##[[2, 1]], ##[[2, 2]]]] & /@ data[[2]];
+    temp = temp;
+    Clear[GGG];
+    temp = DeleteCases[temp, {a_, {{a_, "1"}}}];
+    temp = {##[[1]], {##[[1]], ToExpression[##[[2]]]} & /@ ##[[2]]} & /@ temp;
+    temp = {##[[1]], {##[[1]], coeff[##[[2]]]} & /@ ##[[2]]} & /@ temp;
+    If[JoinTerms,
+        temp = {##[[1]], Times @@@ ##[[2]]} & /@ temp;
+        temp = {##[[1]], Plus @@ ##[[2]]} & /@ temp;
+    ];
+    Rule @@@ temp // ReplaceAll[G[bid_, idx_List] :> B[bid, Sequence @@ idx]]
+ ]
+
 
 (*
  * ## Interface to pySecDec
