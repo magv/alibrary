@@ -5,6 +5,7 @@
  *
  * This file deals with Feynman diagrams and all the related
  * things. Generic Mathematica utils go into [[utils.m]].
+ * Tests go into [[atestsuite.m]].
  *
  * ## Contents
  * [[table of contents]]
