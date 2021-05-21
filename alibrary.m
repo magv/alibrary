@@ -85,12 +85,32 @@ DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
 
 (* ## Diagrams to graphs *)
 
+(* Convert a diagram to a list of undirected edges.
+ *)
 DiagramGraphEdges[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
-  p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> II[vi1] <-> II[vi2],
-  i /. F[f_, fi_, vi_, mom_] :> SS[fi] <-> II[vi],
-  o /. F[f_, fi_, vi_, mom_] :> II[vi] <-> EE[fi]
+  p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> Internal[vi1] <-> Internal[vi2],
+  i /. F[f_, fi_, vi_, mom_] :> Incoming[fi] <-> Internal[vi],
+  o /. F[f_, fi_, vi_, mom_] :> Internal[vi] <-> Outgoing[fi]
 ]
+
+(* Convert a diagram to an undirected `Graph` object.
+ *)
 DiagramGraph[d_Diagram] := DiagramGraphEdges[d] // Graph
+DiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{e1, e2, x},
+  e1 = DiagramGraphEdges[d1];
+  e2 = DiagramGraphEdges[d2];
+  Join[
+    e1 // DeleteCases[_ <-> _Outgoing],
+    e2 /.
+      Incoming -> Incoming2 /.
+      Internal -> Internal2 /.
+      Cases[e1, (i_ <-> e_Outgoing) :> ((x_ <-> e) :> Style[x <-> i, Dashed])]
+  ]
+]
+
+(* Convert a diagram to an [[XGraph]] object, with informational
+ * labels on each edge.
+ *)
 DiagramXGraph[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
    i /. F[f_, fi_, vi_, mom_] :> {IN[fi] -> vi,
       Text[MkString[f, "(", mom, ")"] // StringReplace[" " -> ""]],
@@ -102,6 +122,9 @@ DiagramXGraph[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
       Text[MkString[f, "(", mom, ")"] // StringReplace[" " -> ""]],
       Switch[f, q, Thickness[0.01], _, {}]}
    ] // XGraph
+
+(* Convert a diagram to a source code for a Graphviz `digraph` object.
+ *)
 DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{c, defc},
   c = <|
     "q" -> 6, "Q" -> 6,
@@ -178,22 +201,10 @@ DiagramToGraphviz[CutDiagram[
    "}\n"
    ]
 ]
-CutDiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{e1, e2, x},
-  e1 = DiagramGraphEdges[d1];
-  e2 = DiagramGraphEdges[d2];
-  Join[e1 // DeleteCases[_ <-> _EE],
-   e2 /. SS -> SS2 /. II -> II2 /. Cases[e1, (i_ <-> e_EE) :> ((x_ <-> e) :> Style[x <-> i, Dashed])]]
-]
-DiagramToSvg[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
-  tmp = MkTemp["diavis", ".gv"];
-  pdf = tmp <> ".svg";
-  Export[tmp, DiagramToGraphviz[d], "String"];
-  Run["neato -Tsvg -o", pdf, tmp];
-  result = ReadString[pdf];
-  DeleteFile[{tmp, pdf}];
-  If[MatchQ[result, $Failed], Error["Failed to get: ", pdf];];
-  result
-]
+
+(* Use Graphviz to convert a diagram into a `Graphics` object.
+ * Useful for visualization.
+ *)
 DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
   tmp = MkTemp["diavis", ".gv"];
   pdf = tmp <> ".pdf";
@@ -204,7 +215,13 @@ DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
   result // First
 ]
 
-DiagramToTikz[Diagram[id_, _, i_List, o_List, p_List, v_List]] := Module[{es, ni, no, scale},
+(* Convert a diagram into badly layed out TikZ, with the intention
+ * to let the user to manually edit the TikZ source afterwards
+ * using e.g. [TikZiT].
+ *
+ * [tikzit]: https://tikzit.github.io/
+ *)
+DiagramToTikZ[Diagram[id_, _, i_List, o_List, p_List, v_List]] := Module[{es, ni, no, scale},
   es = {
     "q"|"u"|"d"|"c"|"s"|"t"|"b"|"x"|"y" -> "fermion",
     "W"|"A" -> "photon",
