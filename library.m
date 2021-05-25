@@ -381,154 +381,6 @@ AmpSanityCheck[ex_] := Module[{idx, termidx},
   )&];
 ]
 
-(* Run expressions through FORM (using `library.frm`), running
- * the specified code fragment on it. (The code is constructed
- * with [[MkString]]).
- *)
-AmpFormRun[{}, _] := {}
-AmpFormRun[exprs_List, code_] :=
- Module[{tmpsrc, tmpdst, tmplog, result, toform, fromform, i, expridxs},
-  tmpsrc = MkTemp["amp", ".frm"];
-  tmpdst = tmpsrc <> ".m";
-  tmplog = tmpsrc // StringReplace[".frm" ~~ EndOfString -> ".log"];
-  {toform, fromform} = AmpFormIndexMaps[exprs];
-  (*CopyToClipboard[tmpsrc//PR];*)
-  MkFile[tmpsrc,
-    "#include library.frm\n",
-    (* This whole dance is needed to distribute expressions
-     * across workers; tform would keep everything in a single
-     * process if we where to just do assign our expression to
-     * EXPR directly.
-     *)
-    "Table EXTBL(1:", Length[exprs], ");\n",
-    Table[
-      {"Fill EXTBL(", i, ") = (",
-        (* Replacing delta() with d_() doesn't work because
-         * d_()^2 is broken. Instead use (d_()), which works.
-         * See: github.com/vermaseren/form/issues/341.
-         *)
-        exprs[[i]] // ReplaceAll[toform] // AmpToForm // (*StringReplace["delta("->"d_("]*)
-          StringReplace["delta(" ~~ a:(Except[")"] ...) ~~ ")" -> "(d_(" ~~ a ~~ "))"],
-        ");\n"}
-      ,
-      {i, Length[exprs]}
-    ],
-    (*"L EXPR = <EX(1)>+...+<EX(", Length[exprs], ")>;\n",*)
-    "L EXPR = sum_(xidx,1,", Length[exprs], ",EX(xidx));\n",
-    ".sort:init;\n",
-    (* Now that EX(n) are in different workers, we can insert
-     * their values, and start the computations.
-     *)
-    "id EX(x?) = EX(x)*EXTBL(x);\n",
-    (*"cleartable EXTBL;\n"*)
-    "#call input\n",
-    code,
-    "#call output(", tmpdst, ")\n",
-    ".end\n"
-  ];
-  Print["AmpFormRun: calling tform ", tmpsrc];
-  (*Run["tform", "-q", "-Z", "-M", "-l", "-w4", tmpsrc]//TM;*)
-  Run["form", "-q", "-Z", "-M", "-l", tmpsrc]//TM;
-  Print["AmpFormRun: reading result (", FileByteCount[tmpdst]//FormatBytes, ")"];
-  result = SafeGet[tmpdst]//TM;
-  Print["AmpFormRun: transforming it back"];
-  result /. fromform // AmpFromForm // Terms //
-      Map[Replace[EX[i_]*ex_. :> {i, ex}]] //
-     GroupBy[#, First -> (#[[2]] &)] & // Map[Apply[Plus]] //
-   Lookup[#, Range[Length[exprs]], 0] &
-  ]
-AmpFormRun[code_] := AmpFormRun[#, code]&
-AmpFormRun[exprs_, code_] := AmpFormRun[{exprs}, code] // First
-FormFn[procname_String] := {"#call ", procname, "\n"}
-FormFn[procnames__] := Map[FormFn, {procnames}]
-FormFnToB[ibpbasis_List, extobid_List] := Module[{expridxs},
-  {
-    "#procedure toBid\n",
-    "  ",
-    ibpbasis // Map[Function[{basis},
-      expridxs = Range[Length[extobid]] // Select[(extobid[[#]] === basis[[1]])&];
-      (*If[basis[[1]] === 1, "  ", "  else"],*)
-      If[expridxs === {},
-        Nothing,
-        {
-          "if (match(EX(x?{,", expridxs // Riffle[#, ","]& ,"})));\n",
-          "    multiply Bid^", basis[[1]], ";\n"
-        }
-      ]
-    ]] // Riffle[#, "  else"]&,
-    "  else;\n",
-    "    exit \"ERROR: toBid: got a term without a good EX(n) factor.\";\n",
-    "  endif;\n",
-    "#endprocedure\n",
-    "#procedure toBden\n",
-    "  ",
-    ibpbasis // Map[Function[{basis},
-      expridxs = Range[Length[extobid]] // Select[(extobid[[#]] === basis[[1]])&];
-      (*If[basis[[1]] === 1, "  ", "  else"],*)
-      If[expridxs === {},
-        Nothing,
-        {
-          "if (match(only, Bid^", basis[[1]], "));\n",
-          basis[[{5,6}]] // Apply[Join] // Normal //
-            Map[{"    id ", #[[1]]//AmpToForm, " = ",
-              #[[2]]/.bden[n_]:>MkString["Bden",n]//AmpToForm, ";\n"}&]
-        }
-      ]
-    ]] // Riffle[#, "  else"]&,
-    "  else;\n",
-    "    exit \"ERROR: toBden: got a term without a proper Bid^n factor.\";\n",
-    "  endif;\n",
-    "#endprocedure\n",
-    "#call toB(", Length[ibpbasis[[1, 4]]], ", toBid, toBden)\n"
-  }
-]
-ClearAll[InsertToBFactors];
-InsertToBFactors[ibpbasis_, bidlist_List] := InsertToBFactors[#, ibpbasis, bidlist]&
-InsertToBFactors[ex_List, ibpbasis_, bidlist_List] :=
-  MapThread[ReplaceAll[#1, #2]*Bid^#3&, {
-    ex,
-    ibpbasis[[;;, 5]]//ReplaceAll[#, CaseUnion[#, bden[n_] :> (bden[n]->MkExpression["Bden", n])]]&//#[[bidlist]]&,
-    bidlist
-  }]
-FormFnToB[ibpbasis_List] := {
-    "#procedure toBid\n",
-    "* Assume Bid^n factor are already supplied.\n",
-    "#endprocedure\n",
-    "#procedure toBden\n",
-    "  ",
-    ibpbasis // Map[Function[{basis},
-      {
-        "if (match(only, Bid^", basis[[1]], "));\n",
-        basis[[6]] // Normal //
-          Map[{"    id ", #[[1]]//AmpToForm, " = ",
-            #[[2]]/.bden[n_]:>MkString["Bden",n]//AmpToForm, ";\n"}&]
-      }
-    ]] // Riffle[#, "  else"]&,
-    "  else;\n",
-    "    exit \"ERROR: toBden: got a term without a proper Bid^n factor.\";\n",
-    "  endif;\n",
-    "#endprocedure\n",
-    "#call toB(", Length[ibpbasis[[1, 4]]], ", toBid, toBden)\n"
-  }
-FormFnZeroSectors[zerobs_List] := zerobs //
-  MapReplace[B[bid_, idx__] :> {
-    "id B(", bid, MapIndexed[ReplaceAll[#1, {
-      0 -> {", x", #2, "?neg0_"},
-      1 -> {", x", #2, "?"}
-    }]&, {idx}], ") = 0;\n"
-  }]
-FormFnReplace[rules__] := {rules} // MapReplace[
-  (sp[p_] -> v_) :> {
-    "id sp(", p // InputForm, ") = ", v // InputForm, ";\n",
-    "id dot(", p // InputForm, ",", p // InputForm, ") = ", v // InputForm, ";\n"
-  },
-  (sp[p1_,p2_] -> v_) :> {
-    "id sp(", p1 // InputForm, ",", p2 // InputForm, ") = ", v // InputForm, ";\n",
-    "id sp(", p2 // InputForm, ",", p1 // InputForm, ") = ", v // InputForm, ";\n",
-    "id dot(", p1 // InputForm, ",", p2 // InputForm, ") = ", v // InputForm, ";\n"
-  }
-]
-
 (*
 {
   deltaflv[1,2] deltaflv[2,3] deltaflv[3,1],
@@ -547,7 +399,7 @@ FormFnReplace[rules__] := {rules} // MapReplace[
   deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]] chargeV[flv[1]] /. flv[3] -> 0,
   deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] chargeA[flv[1]] /. flv[3] -> 0,
   deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] chargeV[flv[1]] /. flv[3] -> 0
-} // AmpFormRun[FormFn["flavorsum"]]//InputForm
+} // RunThroughForm[FormCall["flavorsum"]]//InputForm
 *)
 
 (* Remove factors that don't have indices inside from each
@@ -569,7 +421,7 @@ CutDiagramFlavorFactor[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{a1, a2},
   a2 = d2 // Amplitude // AmpConjugate;
   a1 a2 /. flv[-2] -> 0 // FasterFactor // Factors //
     Select[NotFreeQ[_deltaf | _chargeQ | _chargeV | _chargeA]] // Apply[Times] //
-    List // AmpFormRun[FormFn["flavorsum"]] // First
+    List // RunThroughForm[FormCall["flavorsum"]] // First
 ]
 
 (* Graph canonization *)
@@ -1172,85 +1024,7 @@ KnownBasisMap[knownibp:{{(*file*)_String, (*idx*)_Integer, (*exb*)_} ...}, maste
 
 (*** LIB IBP ***)
 
-(* R = denominator power sum
- * Dots = denominator dot count
- * T = denominator count
- * S = numerator power sum
- *)
-IndicesToSectorId[idx_List] := Plus @@ Table[If[idx[[i]] > 0, 2^(i-1), 0], {i, Length[idx]}]
-SectorIdToIndices[sector_Integer, ndens_Integer] := IntegerDigits[sector, 2, ndens] // Reverse
-IndicesToR[idx_List] := idx // Cases[n_ /; n > 0 :> n] // Apply[Plus]
-IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
-IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
-IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
-
 NormalizeDens[ex_] := ex /. den[p_, x___] :> den[DropLeadingSign[p], x] /. den[p_, 0] :> den[p]
-
-TopSectors[idxlist_List] := Module[{tops, sector2r, sector2s, sector2d, s2sectors, int, sector, r, s, d, sectors, done, i, ss},
-  tops = idxlist // Map[IndicesToS] // Max[#, 1]&;
-  sector2r = <||>;
-  sector2s = <||>;
-  sector2d = <||>;
-  s2sectors = Association @@ Table[s -> {}, {s, 0, tops}];
-  Do[
-      sector = IndicesToSectorId[int];
-      r = IndicesToR[int];
-      s = IndicesToS[int];
-      d = IndicesToDots[int];
-      AppendTo[s2sectors[s], sector];
-      sector2r[sector] = Max[r, sector2r[sector] /. _Missing -> 0];
-      sector2d[sector] = Max[d, sector2d[sector] /. _Missing -> 0];
-      (* Note: s=0 makes Kira produce false masters. It's not
-       * clear, if we should only fix s=0 case, or if we need
-       * to add +1 to all s. Currently we're doing the former.
-       *)
-      sector2s[sector] = Max[s, sector2s[sector] /. _Missing -> 1];
-      ,
-      {int, idxlist}
-  ];
-  Print["* Sectors by numerator power sum (s)"];
-  sectors = {};
-  done = {};
-  For[s = tops, s >= 0, s--,
-      s2sectors[s] = s2sectors[s] // Union // Reverse;
-      Do[
-          If[MemberQ[done, sector], Continue[]];
-          i = FirstPosition[done, ss_ /; (BitAnd[ss, sector] === sector)];
-          If[MatchQ[i, _Missing],
-              AppendTo[done, sector];
-              AppendTo[sectors, sector];
-              Print["Unique sector: ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
-              ,
-              i = i[[1]];
-              Print["Subsector of ", done[[i]], ": ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
-              sector2r[done[[i]]] = Max[sector2r[sector], sector2r[done[[i]]]];
-              sector2d[done[[i]]] = Max[sector2d[sector], sector2d[done[[i]]]];
-              sector2s[done[[i]]] = Max[sector2s[sector], sector2s[done[[i]]]];
-              ];
-          ,
-          {sector, s2sectors[s]}
-      ];
-  ];
-  (* We need to make sure each sector has more integrals than
-   * masters, otherwise Kira will have nothing to work with, and
-   * we'll miss masters in the IBP table.
-   *)
-  Do[
-      sector2s[sector] = Max[sector2s[sector], 1];
-      sector2d[sector] = Max[sector2d[sector], 1];
-      sector2r[sector] = Max[sector2r[sector], DigitCount[sector, 2, 1]];
-      ,
-      {sector, sectors}];
-  Print["Final sectors:"];
-  Do[
-    Print["- ", sector, " ", IntegerDigits[sector, 2, Length[First[idxlist]]]//Reverse, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
-    ,
-    {sector, sectors}];
-  Table[
-    <|"id" -> sector, "r" -> sector2r[sector], "s" -> sector2s[sector], "d" -> sector2d[sector]|>
-    ,
-    {sector, sectors}]
-]
 
 LoadKiraSectorMappings[nmomenta_Integer, filename_String] :=
 Module[{text, sector1, mommap, jacobian, sector2, bid2},

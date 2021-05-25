@@ -266,7 +266,7 @@ ExpandScalarProducts[mompattern_] := ReplaceAll[sp[a_, b_] :> (
 
 (* Convert an expression with `sp` and `den` to `B` notation in
  * a given basis. This is the slow version of it; the faster one
- * uses FORM: see [[AmpFormRun]] and [[FormFnToB]].
+ * uses FORM: see [[RunThroughForm]] and [[FormCallToB]].
  *)
 ToB[basis_Association] := ToB[#, basis]&
 ToB[ex_, basis_Association] := Module[{indices},
@@ -524,9 +524,96 @@ Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
 ];
 SymmetryMaps[families_List, loopmom_List, extmom_List] := SymmetryMaps[families, loopmom, extmom, {}]
 
+(*
+ * ## FORM
+ *)
+
+If[Not[MatchQ[$FORM, _String]], $FORM = "tform -w4"; ];
+
+(* Run expressions through FORM (using `library.frm`), running
+ * the specified code fragment on it. (The code is constructed
+ * with [[MkString]]).
+ *)
+RunThroughForm[{}, _] := {}
+RunThroughForm[exprs_List, code_] :=
+ Module[{tmpsrc, tmpdst, tmplog, result, toform, fromform, i, expridxs},
+  tmpsrc = MkTemp["amp", ".frm"];
+  tmpdst = tmpsrc <> ".m";
+  tmplog = tmpsrc // StringReplace[".frm" ~~ EndOfString -> ".log"];
+  {toform, fromform} = AmpFormIndexMaps[exprs];
+  MkFile[tmpsrc,
+    "#include library.frm\n",
+    (* This whole dance is needed to distribute expressions
+     * across workers; tform would keep everything in a single
+     * process if we where to just do assign our expression to
+     * EXPR directly.
+     *)
+    "Table EXTBL(1:", Length[exprs], ");\n",
+    Table[
+      {"Fill EXTBL(", i, ") = (",
+        (* Replacing delta() with d_() doesn't work because
+         * d_()^2 is broken. Instead use (d_()), which works.
+         * See: github.com/vermaseren/form/issues/341.
+         *)
+        exprs[[i]] // ReplaceAll[toform] // AmpToForm // (*StringReplace["delta("->"d_("]*)
+          StringReplace["delta(" ~~ a:(Except[")"] ...) ~~ ")" -> "(d_(" ~~ a ~~ "))"],
+        ");\n"}
+      ,
+      {i, Length[exprs]}
+    ],
+    (*"L EXPR = <EX(1)>+...+<EX(", Length[exprs], ")>;\n",*)
+    "L EXPR = sum_(xidx,1,", Length[exprs], ",EX(xidx));\n",
+    ".sort:init;\n",
+    (* Now that EX(n) are in different workers, we can insert
+     * their values, and start the computations.
+     *)
+    "id EX(x?) = EX(x)*EXTBL(x);\n",
+    (*"cleartable EXTBL;\n"*)
+    "#call input\n",
+    code,
+    "#call output(", tmpdst, ")\n",
+    ".end\n"
+  ];
+  Print["RunThroughForm: calling ", $FORM, " ", tmpsrc];
+  Run[$FORM, "-q", "-Z", "-M", "-l", tmpsrc]//TM;
+  Print["RunThroughForm: reading result (", FileByteCount[tmpdst]//FormatBytes, ")"];
+  result = SafeGet[tmpdst]//TM;
+  DeleteFile[{tmpsrc, tmpdst, tmplog}];
+  Print["RunThroughForm: transforming it back"];
+  result /. fromform // AmpFromForm // Terms //
+      Map[Replace[EX[i_]*ex_. :> {i, ex}]] //
+     GroupBy[#, First -> (#[[2]] &)] & // Map[Apply[Plus]] //
+   Lookup[#, Range[Length[exprs]], 0] &
+  ]
+RunThroughForm[code_] := RunThroughForm[#, code]&
+RunThroughForm[exprs_, code_] := RunThroughForm[{exprs}, code] // Only
+
+FormCall[procname_String] := {"#call ", procname, "\n"}
+FormCall[procnames__] := Map[FormCall, {procnames}]
+
+FormCallZeroSectors[zerobs_List] := zerobs //
+  MapReplace[B[bid_, idx__] :> {
+    "id B(", bid, MapIndexed[ReplaceAll[#1, {
+      0 -> {", x", #2, "?neg0_"},
+      1 -> {", x", #2, "?"}
+    }]&, {idx}], ") = 0;\n"
+  }]
+
+FormCallReplace[rules__] := {rules} // MapReplace[
+  (sp[p_] -> v_) :> {
+    "id sp(", p // InputForm, ") = ", v // InputForm, ";\n",
+    "id dot(", p // InputForm, ",", p // InputForm, ") = ", v // InputForm, ";\n"
+  },
+  (sp[p1_,p2_] -> v_) :> {
+    "id sp(", p1 // InputForm, ",", p2 // InputForm, ") = ", v // InputForm, ";\n",
+    "id sp(", p2 // InputForm, ",", p1 // InputForm, ") = ", v // InputForm, ";\n",
+    "id dot(", p1 // InputForm, ",", p2 // InputForm, ") = ", v // InputForm, ";\n"
+  }
+]
+
 (* Form function to convert the current expression into B notation.
- * To be used with [[AmpFormRun]]. *)
-FormFnToB[bases_List] := MkString[
+ * To be used with [[RunThroughForm]]. *)
+FormCallToB[bases_List] := MkString[
     "#procedure toBid\n",
     "* Assume Bid^n factor are already supplied.\n",
     "#endprocedure\n",
