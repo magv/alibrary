@@ -662,7 +662,7 @@ KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
 (* Create Kira’s `kinematics.yaml` config file.
  *)
 MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, one_Symbol] :=
-  MkFile[filename,
+  MaybeMkFile[filename,
     "kinematics:\n",
     " incoming_momenta: [", extmom // Riffle[#, ", "]&, "]\n",
     " kinematic_invariants:\n",
@@ -683,7 +683,7 @@ MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, one_Symbol] :=
  *)
 MkKiraIntegralFamiliesYaml[filename_, bases_List] :=
 Module[{loopmom, extmom, dens, basis},
-  MkFile[filename,
+  MaybeMkFile[filename,
     "integralfamilies:\n",
     Table[
       loopmom = basis["loopmom"];
@@ -716,7 +716,7 @@ Module[{loopmom, extmom, dens, basis},
 (* Create Kira’s jobs file.
  *)
 MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, sector, r, s}, 
-  MkFile[filename,
+  MaybeMkFile[filename,
     "jobs:\n",
     " - reduce_sectors:\n",
     "    reduce:\n",
@@ -795,7 +795,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
 MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
   Do[
     idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
-    MkFile[dirname <> "/" <> KiraBasisName[bid] <> ".integrals",
+    MaybeMkFile[dirname <> "/" <> KiraBasisName[bid] <> ".integrals",
       idxlist // Map[{KiraBasisName[bid], "[", Riffle[#, ","], "]\n"}&]
     ];
     ,
@@ -905,6 +905,52 @@ Module[{bid, bids, bid2topsector, idxlist},
   MkKiraJobsYaml[dirname <> "/jobs.yaml", bids, bid2topsectors, "all"];
   MkKiraIntegrals[dirname, blist];
 ]
+
+(* Populate a directory with Kira subdirectories for each basis, and
+ * write a Makefile that runs Kira for each of them. With this done,
+ * just running `make` should already reduce each basis (separately).
+ *
+ * The intended usage however is to parallelize the computations
+ * on a cluster. To this end, first define `THREADS` environment
+ * variable, that specifies how many threads should each Kira
+ * use, and the `RUN` environment variable, that specifies the
+ * command prefix for running jobs on the cluster (for example,
+ * `srun -c16 --mem=50G --tmp=10G`); then run `make -j99`.
+ *
+ * The idea behind `THREADS` and `RUN` variables is the same as
+ * with [[SecDecPrepare]].
+ *
+ * Note that unlike the direct usage, to discover symmetries
+ * between master integrals in different bases, a separate combined
+ * IBP run is needed -- this time covering only the master integrals.
+ *)
+MkKiraConfigByBasis[dirname_, bases_List, blist_] :=
+Module[{bid, bids, bid2basis, name},
+  bids = blist // CaseUnion[B[bid_, ___] :> bid];
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
+  Do[
+    MkKiraConfig[dirname <> "/" <> KiraBasisName[bid], {bid2basis[bid]}, blist // CaseUnion[B[bid,___]]];
+    ,
+    {bid, bids}];
+  MaybeMkFile[dirname <> "/Makefile",
+    "THREADS?= 1\n",
+    "RUN ?=\n",
+    Table[
+      name = KiraBasisName[bid];
+      {
+        "\n",
+        "all: ", name, "/done\n",
+        name, "/done: ",
+          name, "/config/integralfamilies.yaml ",
+          name, "/config/kinematics.yaml ",
+          name, "/", name, ".integrals ",
+          name, "/jobs.yaml\n",
+        "\t${RUN} ../kira.sh ", name, "/jobs.yaml --parallel=${THREADS}\n"
+      },
+      {bid, bids}]
+  ];
+]
+
 
 (* Read the IBP tables from a Kira directory, apply them to a
  * given expression.
