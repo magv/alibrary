@@ -760,7 +760,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
             {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
-        "    reconstruct_mass: false\n",
+        "    reconstruct_mass: true\n",
         "    integral_ordering: 8\n"
       },
       "prepare", {
@@ -783,7 +783,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
             {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
-        "    reconstruct_mass: false\n",
+        "    reconstruct_mass: true\n",
         "    integral_ordering: 8\n"
       }
     ]
