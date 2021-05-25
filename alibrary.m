@@ -661,7 +661,7 @@ KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
 
 (* Create Kira’s `kinematics.yaml` config file.
  *)
-MkKiraKinematicsYaml[filename_, extmom_List, sprules_List] :=
+MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, one_Symbol] :=
   MkFile[filename,
     "kinematics:\n",
     " incoming_momenta: [", extmom // Riffle[#, ", "]&, "]\n",
@@ -676,7 +676,7 @@ MkKiraKinematicsYaml[filename_, extmom_List, sprules_List] :=
       (sp[p_] -> v_) :> {"  - [[", p//InputForm, ",", p//InputForm, "], ", v//InputForm, "]\n"},
       (sp[p1_, p2_] -> v_) :> {"  - [[", p1//InputForm, ",", p2//InputForm, "], ", v//InputForm, "]\n"}
     ] // Union,
-    "# symbol_to_replace_by_one: qq"
+    " symbol_to_replace_by_one: ", one, "\n"
   ];
 
 (* Create Kira’s `integralfamilies.yaml` config file.
@@ -692,7 +692,7 @@ Module[{loopmom, extmom, dens, basis},
       {
         "  - name: \"", KiraBasisName[basis["id"]], "\"\n",
         "    loop_momenta: [", Riffle[loopmom, ", "], "]\n",
-        "    top_level_sectors: [", dens // MapReplace[den[_, _, irr] -> 0, _den -> 1] // IndicesToSectorId, "]\n",
+        "    top_level_sectors: [b", dens // MapReplace[den[_, _, irr] -> 0, _den -> 1], "]\n",
         "    propagators:\n",
         dens // Map[Replace[{
           den[p_] | den[p_, 0, ___] :> {"      - [\"", CForm[p], "\", 0]\n"},
@@ -715,13 +715,15 @@ Module[{loopmom, extmom, dens, basis},
 
 (* Create Kira’s jobs file.
  *)
-MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, sector}, 
+MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, sector, r, s}, 
   MkFile[filename,
     "jobs:\n",
     " - reduce_sectors:\n",
     "    reduce:\n",
     Table[
-        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [", sector["id"], "], r: ", sector["r"], ", s: ", sector["s"], "}\n"}
+        r = Max[sector["r"], 1 + Plus@@sector["idx"]];
+        s = Max[sector["s"], 1];
+        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", r, ", s: ", s, "}\n"}
         ,
         {bid, bids},
         {sector, topsectors[bid]}],
@@ -735,7 +737,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
     Table[
         {
         "#      - {topologies: [", KiraBasisName[bid],
-            "], sectors: [", sector["id"],
+            "], sectors: [b", sector["idx"],
             "], r: ", sector["r"],
             ", s: ", sector["s"],
             ", d: ", sector["d"], "}\n"},
@@ -755,7 +757,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
           {"     - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"},
           {bid, bids}],
         Table[
-            {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [", sector["id"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
+            {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
         "    reconstruct_mass: false\n",
@@ -778,7 +780,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
           {"     - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"},
           {bid, bids}],
         Table[
-            {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [", sector["id"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
+            {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
         "    reconstruct_mass: false\n",
@@ -800,6 +802,90 @@ MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
     {bid, blist // CaseUnion[B[bid_, ___] :> bid]}];
 ]
 
+(* R = denominator power sum
+ * Dots = denominator dot count
+ * T = denominator count
+ * S = numerator power sum
+ *)
+IndicesToSectorId[idx_List] := Plus @@ Table[If[idx[[i]] > 0, 2^(i-1), 0], {i, Length[idx]}]
+SectorIdToIndices[sector_Integer, ndens_Integer] := IntegerDigits[sector, 2, ndens] // Reverse
+IndicesToR[idx_List] := idx // Cases[n_ /; n > 0 :> n] // Apply[Plus]
+IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
+IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
+IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
+
+TopSectors[idxlist_List] :=
+Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r, s, d, sectors, done, i, ss},
+  tops = idxlist // Map[IndicesToS] // Max[#, 1]&;
+  sector2i = <||>;
+  sector2r = <||>;
+  sector2s = <||>;
+  sector2d = <||>;
+  s2sectors = Association @@ Table[s -> {}, {s, 0, tops}];
+  Do[
+      sector = IndicesToSectorId[int];
+      sector2i[sector] = SectorIdToIndices[sector, Length[int]];
+      r = IndicesToR[int];
+      s = IndicesToS[int];
+      d = IndicesToDots[int];
+      AppendTo[s2sectors[s], sector];
+      sector2r[sector] = Max[r, sector2r[sector] /. _Missing -> 0];
+      sector2d[sector] = Max[d, sector2d[sector] /. _Missing -> 0];
+      (* Note: s=0 makes Kira produce false masters. It’s not
+       * clear, if we should only fix s=0 case, or if we need
+       * to add +1 to all s. Currently we’re doing the former
+       * inside [[MkKiraJobsYaml]].
+       *)
+      sector2s[sector] = Max[s, sector2s[sector] /. _Missing -> 0];
+      ,
+      {int, idxlist}
+  ];
+  Print["* Sectors by numerator power sum (s)"];
+  sectors = {};
+  done = {};
+  For[s = tops, s >= 0, s--,
+      s2sectors[s] = s2sectors[s] // Union // Reverse;
+      Do[
+          If[MemberQ[done, sector], Continue[]];
+          i = FirstPosition[done, ss_ /; (BitAnd[ss, sector] === sector)];
+          If[MatchQ[i, _Missing],
+              AppendTo[done, sector];
+              AppendTo[sectors, sector];
+              Print["Unique sector: ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
+              ,
+              i = i[[1]];
+              Print["Subsector of ", done[[i]], ": ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
+              sector2r[done[[i]]] = Max[sector2r[sector], sector2r[done[[i]]]];
+              sector2d[done[[i]]] = Max[sector2d[sector], sector2d[done[[i]]]];
+              sector2s[done[[i]]] = Max[sector2s[sector], sector2s[done[[i]]]];
+              ];
+          ,
+          {sector, s2sectors[s]}
+      ];
+  ];
+  (* We need to make sure each sector has more integrals than
+   * masters, otherwise Kira will have nothing to work with, and
+   * we'll miss masters in the IBP table.
+   *)
+  (*
+  Do[
+      sector2s[sector] = Max[sector2s[sector], 1];
+      sector2d[sector] = Max[sector2d[sector], 1];
+      sector2r[sector] = Max[sector2r[sector], DigitCount[sector, 2, 1]];
+      ,
+      {sector, sectors}];
+  *)
+  Print["Final sectors:"];
+  Do[
+    Print["- ", sector, " ", IntegerDigits[sector, 2, Length[First[idxlist]]]//Reverse, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
+    ,
+    {sector, sectors}];
+  Table[
+    <|"id" -> sector, "idx" -> sector2i[sector], "r" -> sector2r[sector], "s" -> sector2s[sector], "d" -> sector2d[sector]|>
+    ,
+    {sector, sectors}]
+]
+
 (* Create Kira’s configuration directory for reduction of
  * given integrals under given bases.
  *)
@@ -814,7 +900,7 @@ Module[{bid, bids, bid2topsector, idxlist},
     ,
     {bid, bids}] // Association;
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
-    bases[[1,"externalmom"]], bases[[1,"sprules"]]];
+    bases[[1,"externalmom"]], bases[[1,"sprules"]], bases[[1,"invariants"]]//First];
   MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml", bases // Select[MemberQ[bids, #["id"]]&]];
   MkKiraJobsYaml[dirname <> "/jobs.yaml", bids, bid2topsectors, "all"];
   MkKiraIntegrals[dirname, blist];
@@ -835,6 +921,7 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
   Do[
     Print["* Loading IBP tables for basis ", bid];
     ibpmapfiles = MkString[confdir, "/results/", KiraBasisName[bid], "/kira_", KiraBasisName[bid], ".integrals.m"] // FileNames;
+    If[ibpmapfiles === {}, Continue[]];
     FailUnless[Length[ibpmapfiles] === 1];
     table = ibpmapfiles // First // SafeGet;
     table = table /. bvarmap // TM;
@@ -860,9 +947,7 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
  *)
 KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
   confdir = MkTempDirectory["kira", ""];
-  EnsureDirectory[confdir <> "/config"];
-  blist = ex // CaseUnion[_B];
-  MkKiraConfig[confdir, bases, blist];
+  MkKiraConfig[confdir, bases, ex // CaseUnion[_B]];
   If[Run[MkString["cd '", confdir, "' && kira --parallel=4 jobs.yaml"]] // TM // # =!= 0&,
     EnsureNoDirectory[confdir];
     Error["Failed to run kira"];
