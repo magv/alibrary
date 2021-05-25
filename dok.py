@@ -300,6 +300,7 @@ HTML_FOOT = """\
 STYLE_CSS = """\
 html { background: white; max-width: 800px; margin: auto; }
 html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.2; }
+body { margin: 0 10px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
 pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
@@ -326,7 +327,9 @@ ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: black; color: white; }
- pre { background: #111; border-left-color: #1f1f2f; }
+ pre { background: #111; border-left-color: #334; }
+ pre.doc { border-left-color: #433; }
+.ts { color: #234f82; }
 }
 """
 

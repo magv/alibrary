@@ -1034,20 +1034,36 @@ SecDecIntegralName[integral_B] := integral //
   StringReplace["[" -> ""] //
   StringReplace["]" -> ""] //
   StringReplace["-" -> "m"]
+SecDecIntegralName[DimShift[integral_B, n_]] :=
+  SecDecIntegralName[integral] <> "_dshift" <> ToString[n]
 
-(* Prepare `*generate.py` files in a given directory for the
- * given list of integrals.
+(* Prepare pySecDec files in a given directory for the
+ * given list of integrals. These can then be compiled manually
+ * by running `make compile`.
+ *
+ * Each integral in a list can be:
+ * - `B[...]`;
+ * - `DimShift[B[...], n]`;
+ * - {integral, epsilon-order}.
+ *
+ * One can alternatively use [[SecDecCompile]] to both prepare
+ * and compile.
  *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
-Module[{name, basisid, indices, basis, integral, p, m},
+Module[{name, basisid, indices, basis, integral, p, m, dim, order},
   EnsureDirectory[basedir];
   Do[
-    name = SecDecIntegralName[integral];
+    {name, integral, dim, order} = integral // Replace[{
+        b_B :> {SecDecIntegralName[b], b, 4, 0},
+        int:DimShift[b_B, n_] :> {SecDecIntegralName[int], b, 4 + n, 0},
+        {b_B, ord_} :> {SecDecIntegralName[b], b, 4, ord},
+        {int:DimShift[b_B, n_], ord_} :> {SecDecIntegralName[int], b, 4+n, ord}
+    }];
     Print["* Making ", basedir, "/", name, ".*"];
     basisid = integral[[1]];
     indices = integral[[2;;]] // Apply[List];
     basis = bases[[basisid]];
-    MkFile[basedir <> "/" <> name <> ".generate.py",
+    MaybeMkFile[basedir <> "/" <> name <> ".generate.py",
       "#!/usr/bin/env python3\n",
       "import pySecDec as psd\n",
       "loopint = psd.loop_integral.LoopIntegralFromPropagators(\n",
@@ -1062,6 +1078,7 @@ Module[{name, basisid, indices, basis, integral, p, m},
       "\n",
       "  ],\n",
       "  powerlist = [", indices // Riffle[#, ","]&, "],\n",
+      "  dimensionality=\"", dim, "-2*eps\",\n",
       "  replacement_rules = [\n  ",
       basis["sprules"] //
         ReplaceAll[sp -> (sp /* Sort)] //
@@ -1079,64 +1096,84 @@ Module[{name, basisid, indices, basis, integral, p, m},
           Map[{"'", #, "'"}&] //
           Riffle[#, ", "]&,
       "],\n",
-      "    additional_prefactor = '(I*pi^(2-eps)/(2*pi)^(4-2*eps))^", Length[basis["loopmom"]], "',\n",
-      "    requested_order = 2,\n",
-      "    form_work_space = '50M',\n",
+      "    additional_prefactor = '(I*pi^(2-eps)/(2*pi)^(", dim, "-2*eps))^", Length[basis["loopmom"]], "',\n",
+      "    decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
+      "    requested_order = ", order, ",\n",
+      "    form_optimization_level = 2,\n",
+      "    form_work_space = '100M',\n",
+      "    form_threads = 1,\n",
       "    contour_deformation = True\n",
       ")\n"
     ];
-    MkFile[basedir <> "/" <> name <> ".integrate.py",
+    MaybeMkFile[basedir <> "/" <> name <> ".integrate.py",
       "#!/usr/bin/env python3\n",
       "import sys\n",
-      "import os.path\n",
+      "import os\n",
       "import pySecDec as psd\n",
-      "parameters = [float(parameter) for parameter in sys.argv[1:]]\n",
-      "#sys.stderr.write(f'Parameters: {parameters}\\n')\n",
-      "libfile = os.path.join(os.path.dirname(__file__), '", name, "/", name, "_pylink.so')\n",
+      "parameters = [float(p) for arg in sys.argv[1:] for p in arg.split(',')]\n",
+      "threads = int(os.environ.get('THREADS', '1'))\n",
+      "libfile = './", name, "_pylink.so'\n",
       "lib = psd.integral_interface.IntegralLibrary(libfile)\n",
-      "lib.use_Vegas(epsrel=1e-4, epsabs=1e-07, maxeval=1000000)\n",
-      "int_wo_prefactor, prefactor, int_with_prefactor = lib(real_parameters=parameters)\n",
-      "print('{%s,\\n%s}' % psd.integral_interface.series_to_mathematica(int_with_prefactor))\n"
+      "lib.use_Qmc(transform='korobov3', epsrel=1e-6, epsabs=1e-08, maxeval=10**9, cputhreads=threads)\n",
+      "int_wo_prefactor, prefactor, int_with_prefactor = lib(real_parameters=parameters, deformation_parameters_maximum=1e-2, deformation_parameters_minimum=1e-8)\n",
+      "result = '{%s,\\n%s}' % psd.integral_interface.series_to_mathematica(int_with_prefactor)\n",
+      "print(result)\n"
     ];
     ,
     {integral, integrals}];
+  Print["* Making ", basedir, "/Makefile"];
+  MaybeMkFile[basedir <> "/Makefile",
+    "THREADS ?= 1\n",
+    "RUN ?=\n",
+    Table[
+      name = integral // Replace[{
+        {b_, _} :> SecDecIntegralName[b],
+        b_ :> SecDecIntegralName[b]
+      }];
+      {
+        "\n",
+        "integrate: ", name , "_value.m\n",
+        "compile: ", name , "_pylink.so\n",
+        "\n",
+        name, "_pylink.so: ", name, ".generate.py\n",
+        "\trm -rf ", name, "/\n",
+        "\t${RUN} python3 ", name, ".generate.py\n",
+        "\t${RUN} make -C ", name, " -j${THREADS} ", name, "_pylink.so\n",
+        "\tmv ", name, "/", name, "_pylink.so $@\n",
+        "\trm -rf ", name, "\n",
+        "\n",
+        name, "_value.m: ", name, "_pylink.so ", name, ".integrate.py invariants.txt\n",
+        "\ttouch -t 199001010000 $@\n",
+        "\t${RUN} python3 ", name, ".integrate.py $$(cat invariants.txt) > $@ || rm -f $@\n"
+      }
+      ,
+      {integral, integrals}]
+  ];
 ]
 
-(* Compile the integration libraries for a list of integrals in
- * a directory previously prepared via [[SecDecPrepare]].
+(* Compile integration libraries for a list of integrals belonging
+ * to a given set of bases in a given directory.
  *)
-SecDecCompile[basedir_String, integrals_List] := Module[{name, integral},
-  Do[
-    name = SecDecIntegralName[integral];
-    Run[MkString["rm -rf '", basedir, "/", name, "/'"]];
-    Run[MkString["cd ", basedir, " && python3 ./", name, ".generate.py"]];
-    Run[MkString["make -j4 -C ", basedir, "/", name, "/ pylink"]];
-    ,
-    {integral, integrals}];
+SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
+  SecDecPrepare[basedir, bases, integrals];
+  SafeRun["make -j", jobs, " -C '", basedir, "' compile"];
 ]
 
 (* Integrate a set of integrals at a given phase-space point
- * given by a list of variables. The variables come in the same
- * order as the "variables" key of the basis. The direcory
- * should have already been prepared with [[SecDecPrepare]] and
- * [[SecDecCompile]].
+ * given by a list of invariant values. The invariants come in the
+ * same order as the "invariants" key of the basis. The direcory
+ * should have already been prepared with [[SecDecCompile]].
  *)
-SecDecIntegrate[basedir_String, integrals_List, variables_List] := Module[{name, integral},
-  integrals //
-    Map[(
-      Print["Integrating ", #, variables];
-      name = SecDecIntegralName[#];
-      integral -> RunThrough[
-        MkString[
-          "python3 ", basedir, "/", name, ".integrate.py ",
-          variables // Map[InputForm] // Riffle[#, " "]&
-        ],
-        ""
-      ]
-    )&]
+SecDecIntegrate[basedir_String, integrals_List, invariants_List, jobs_:1] :=
+Module[{invstring,filenames},
+  (*invstring = invariants // Map[N/*CForm] // Riffle[#, ","]&;*)
+  MaybeMkFile[basedir <> "/invariants.txt", invariants // Map[N/*CForm] // Riffle[#, " "]&];
+  filenames = integrals // Map[MkString[SecDecIntegralName[#], "_value.m"]&];
+  SafeRun["make -j", jobs, " -C '", basedir, "' ", filenames // Riffle[#, " "]&];
+  filenames // Map[SafeGet[basedir <> "/" <> #]&]
 ]
 SecDecIntegrate[basedir_String, integral_, variables_List] :=
-  SecDecIntegrate[basedir, {integral}, variables] // Only // #[[2]]&
+  SecDecIntegrate[basedir, {integral}, variables] // Only
 
 (*
  * ## Dimensional recurrence

@@ -38,10 +38,10 @@ from. Ultimately *you* are doing the calculation, *alibrary*
 is just one of the pieces of code you might be using. Its goal
 is not to be a big deal.
 
-Finally, *Alibrary* aspires to be a learning resource, and have
+Finally, *alibrary* aspires to be a learning resource, and have
 all of its internals obvious and documented, so that one could
-read and understand it without too much effort. This goal is a
-work in progress. Sorry.
+read and understand it without too much effort—this goal is
+a work in progress; sorry.
 
 ## Documentation
 

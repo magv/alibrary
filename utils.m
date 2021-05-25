@@ -18,13 +18,28 @@ MkExpression[args__] := MkString[args] // ToExpression
 (* Convert the items into a string, and write it into a given file object. *)
 WrString[f_, items__] := {items} // Flatten // Map[BinaryWrite[f, # // ToString]&]
 
-(* Convert the items to string and write it into the file. *)
+(* Convert the items into a string and write it into the file. *)
 MkFile[filename_, items__] := Module[{fd},
   (* The BinaryFormat is needed for the BinaryWrite in WrString. *)
   fd = OpenWrite[MkString[filename], BinaryFormat->True];
   If[fd === $Failed, Error["MkFile: failed to open ", filename, " for writing"]];
   WrString[fd, {items}];
   Close[fd];
+]
+
+(* Convert the items into a string and write it into the file, unless
+ * that file already exists and has presisely the same content already.
+ *
+ * This is an upgrade over [[MkFile]] that helps to preserve file
+ * timestamps, which is useful if e.g. `make` is used somewhere
+ * down the line.
+ *)
+MaybeMkFile[filename_, items__] := Module[{fd, oldtext, newtext},
+  oldtext = Quiet[ReadString[filename], {OpenRead::noopen}];
+  newtext = MkString[items];
+  If[newtext =!= oldtext,
+    MkFile[filename, newtext];
+  ];
 ]
 
 (* Highlight a matching pattern in red. Useful during development
@@ -53,6 +68,11 @@ ReallyReplace[rule_] := Replace[{rule, x_ :> Error["Failed to replace: ", x]}]
  * list is not a single element list. *)
 Only[{el_}] := el
 Only[l_] := Error["Only: a list of exactly one element expected, got: ", l]
+
+(* Get the second element in a list, fail if the
+ * list is shorter than 2. *)
+Second[{_, el_, ___}] := el
+Second[l_] := Error["Second: a list of at least 2 elements expected, got: ", l]
 
 (* Replace each unique object matching `oldpattern` in `ex` to one
  * of the objects from `newlist` (which is assumed to contain
@@ -280,8 +300,10 @@ UniqueSupersetMapping[sets_List, subsetq_:SubsetQ] := Module[{supersets, idx, Id
   {supersets, sets // Map[IdxOf] }
 ]
 
+(* What an awfully named function. Ugh. Don’t use it.
+ *)
 SelectFactors[ex_, pat_] := Module[{f},
-    f = Factors[ex];
+    f = ex // Factors;
     {
         f // Cases[pat] // Apply[Times],
         f // DeleteCases[pat] // Apply[Times]
@@ -289,11 +311,13 @@ SelectFactors[ex_, pat_] := Module[{f},
 ]
 SelectFactors[pat_] := SelectFactors[#,pat]&
 
+(* Another badly named function. Consider not using.
+ *)
 SplitFactors[ex_, pat_] := Module[{f},
-    f = Factor[ex];
+    f = ex // Factor // Factors;
     {
-        Factors[f] // Select[FreeQ[#, pat] &] // Apply[Times],
-        Factors[f] // Select[Not[FreeQ[#, pat]] &] // Apply[Times]
+        f // Select[FreeQ[#, pat] &] // Apply[Times],
+        f // Select[Not[FreeQ[#, pat]] &] // Apply[Times]
     }
 ]
 SplitFactors[pat_] := SplitFactors[#,pat]&
@@ -307,6 +331,9 @@ MxApart[mx_, x_] := Module[{mxa, xxlist, xx},
     ], {xx, xxlist}]
 ]
 
+(* For an expression linear in a list of variables, return the
+ * matrix of coefficients. Fail if the expression is not linear.
+ *)
 CoefficientMatrix[vars_List] := CoefficientMatrix[#, vars]&
 CoefficientMatrix[ex_List, vars_List] := Module[{mxl},
   mxl = CoefficientArrays[ex, vars];
@@ -317,7 +344,7 @@ CoefficientMatrix[ex_List, vars_List] := Module[{mxl},
       FailUnless[ZeroMatrixQ[mxl[[1]]]];
       Table[0, Length[ex], Length[vars]],
     Length[mxl] === 2,
-      FailUnless[ZeroMatrixQ[mxl[1]]];
+      FailUnless[ZeroMatrixQ[mxl[[1]]]];
       mxl[[2]] // Normal,
     True,
       Error["CoefficientMatrix: quadratic terms in the expression?"];
@@ -368,8 +395,8 @@ AntiBracket[ex_, pat_, coeff_, stemf_] :=
 (* Print the time it takes to evaluate its argument, and return
  * the result of the evaluation. Useful for ad-hoc profiling.
  *)
-SetAttributes[TM, HoldFirst]
 TM[ex_] := AbsoluteTiming[ex] // (Print[HoldForm[ex], ": ", #[[1]]//FormatSeconds]; #[[2]]) &
+SetAttributes[TM, HoldFirst]
 
 (* Print an expression and return it. Useful for debugging. *)
 PR[ex_] := (Print[ex]; ex)
@@ -392,7 +419,6 @@ NotMatchQ[pat_] := MatchQ[pat] /* Not
 
 (* Evaluate a given expression many times, for at least a second,
  * and return the average evaluation time. *)
-SetAttributes[TimeIt, HoldFirst];
 TimeIt[ex_] := Module[{t, niter = 2},
     t = AbsoluteTiming[Do[ex, niter]] // First;
     While[t < 0.9,
@@ -401,6 +427,7 @@ TimeIt[ex_] := Module[{t, niter = 2},
     ];
     t/niter
 ]
+SetAttributes[TimeIt, HoldFirst];
 
 (* Return a random name of a fresh file of the form prefix.XXXX.suffix.
  * Make sure no file with this name exists.
@@ -782,7 +809,7 @@ If[Not[MatchQ[$MapleDebug, True|False]],
 
 (* Run a Maple script defined by a (possibly nested) list of
  * expressions. Export the 'result' variable from Maple after
- * the script is over, and return it's value.
+ * the script is over, and return its value.
  *
  * Note that sometimes when something goes wrong, 'mserver'
  * process lingers on, even after the maple session is over. Those
@@ -886,12 +913,12 @@ FromMaple$Map = {
     HoldPattern[Complex[xx_, yy_]] :> Complex[xx, yy]
 };
 
-(* Save an expression in a format suitable for Maple's 'read()'
+(* Save an expression in a format suitable for Maple’s `read()`
  * command.
  *
  * The name of the variable is set automatically to the
- * basename of the file, so 'MaplePut[..., "x.mma"]' would
- * result in a variable 'x' being defined after 'read("x.mma")'
+ * basename of the file, so `MaplePut[..., "x.mma"]` would
+ * result in a variable `x` being defined after `read("x.mma")`
  * is executed.
  *)
 MaplePut[expression_, filename_String] :=
