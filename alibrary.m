@@ -760,8 +760,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
             {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
-        "    reconstruct_mass: true\n",
-        "    integral_ordering: 8\n"
+        "    reconstruct_mass: true\n"
       },
       "prepare", {
         "    run_symmetries: true\n",
@@ -783,8 +782,7 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
             {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
-        "    reconstruct_mass: true\n",
-        "    integral_ordering: 8\n"
+        "    reconstruct_mass: true\n"
       }
     ]
   ];
@@ -932,6 +930,7 @@ Module[{bid, bids, bid2basis, name},
     MkKiraConfig[dirname <> "/" <> KiraBasisName[bid], {bid2basis[bid]}, blist // CaseUnion[B[bid,___]]];
     ,
     {bid, bids}];
+  Run["cp -a kira.sh '" <> dirname <> "/kira.sh'"];
   MaybeMkFile[dirname <> "/Makefile",
     "THREADS?= 1\n",
     "RUN ?=\n",
@@ -945,12 +944,11 @@ Module[{bid, bids, bid2basis, name},
           name, "/config/kinematics.yaml ",
           name, "/", name, ".integrals ",
           name, "/jobs.yaml\n",
-        "\t${RUN} ../kira.sh ", name, "/jobs.yaml --parallel=${THREADS}\n"
+        "\t${RUN} ./kira.sh ", name, "/jobs.yaml --parallel=${THREADS}\n"
       },
       {bid, bids}]
   ];
 ]
-
 
 (* Read the IBP tables from a Kira directory, apply them to a
  * given expression.
@@ -965,9 +963,9 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
     {bid, bases[[;;,"id"]]}
   ];
   Do[
-    Print["* Loading IBP tables for basis ", bid];
     ibpmapfiles = MkString[confdir, "/results/", KiraBasisName[bid], "/kira_", KiraBasisName[bid], ".integrals.m"] // FileNames;
     If[ibpmapfiles === {}, Continue[]];
+    Print["* Loading IBP tables for basis ", bid];
     FailUnless[Length[ibpmapfiles] === 1];
     table = ibpmapfiles // First // SafeGet;
     table = table /. bvarmap // TM;
@@ -983,6 +981,24 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
   ];
   exx
 ]
+KiraApplyResults[confdir_String, bases_List] := KiraApplyResults[#, confdir, bases]&
+
+(* Extract the list of master integrals from Kira results.
+ *)
+KiraMasterIntegrals[confdir_String] :=
+  FileNames[confdir <> "/results/b*/masters.final"] //
+  Map[
+    ReadString /*
+    (StringSplit[#, "\n"]&) /*
+    Map[
+      StringReplace["[" -> ","] /*
+      StringReplace["]" ~~ ___ -> "]"] /*
+      StringReplace["b" -> "B["] /*
+      ToExpression
+    ]
+  ] //
+  Apply[Join] //
+  Union
 
 (* Perform full IBP reduction of an expression using Kira,
  * replacing all the `B[...]` with linear combinations of master
