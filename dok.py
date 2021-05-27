@@ -165,7 +165,7 @@ def preparse_mma(data, xref, url, toc):
                     if value3 not in xref:
                         xref[value3] = (url, "#" + value3)
                         toc.append((3, value3))
-                        yield Token_Doc, f"<h3 id=\"{value3}\">{value3}[]</h3>\n"
+                        yield Token_Doc, f"<h3 id=\"{value3}\"><code>{value3}[]</code></h3>\n"
                     else:
                         xurl, xhash = xref[value3]
                         print(f"Warning: name {value3!r} at {url}:{lin} was already defined in {xurl}")
@@ -304,7 +304,6 @@ body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
 pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
-h3 { font-family: "Fira Mono",monospace; }
 a { text-decoration: none; color: #2980b9; }
 a:hover, a:focus { text-decoration: underline; }
 pre, code { font-family: "Fira Mono",monospace; }
