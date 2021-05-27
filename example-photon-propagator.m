@@ -57,7 +57,7 @@ Print["Non-zero amplitudes: ", amplitudes2//Count[Except[0]], " of ", amplitudes
  * are zero by the color factors. For example, those with
  * subdiagrams where photon turns into a single gluon. In principle
  * we could have spent some time trying to skip these during
- * diagram generation, but we don't need to. Lets compute color
+ * diagram generation, but we don’t need to. Lets compute color
  * factors instead, and see what turns to zero.
  *)
 
@@ -82,18 +82,17 @@ denominatorsets = amplitudes3 // NormalizeDens // Map[
 ];
 Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union // Length];
 
-(* In priniple we could define the integral families by the
+(* In principle we could define the integral families by the
  * denominator sets above, one family per denominator set. This
  * is not very efficient though, as there are symmetries between
- * those families, so we’d prefer to eliminate all denominator
- * sets that are fully symmetric to others.
+ * those families. It’s best to first eliminate denominator
+ * sets that are symmetric to others.
  *
- * Now, the symmetries manifest most directly in the Feynman
- * parameter space as permutations of the parameters. On the other
- * hand we are still in the momenta space, where the symmetries
- * manifest as loop momenta shifts. So what we’d like to have
- * is a set of momenta shifts that would make symmetric families
- * explicitely identical, or identical to subsets of bigger
+ * The symmetries manifest most directly in the Feynman parameter
+ * space, as permutations of the parameters. In the momenta space
+ * this corresponds to loop momenta shifts. So what we’d like
+ * to have is a set of momenta shifts that would make symmetric
+ * families explicitly identical, or identical to subsets of bigger
  * families, so we could test if a family is symmetric by just
  * asking: is the set of denominators a subset of any other family?
  *
@@ -121,7 +120,7 @@ Print["Total integral families: ", denominatorsupersets//Length];
 
 (* Let us then construct the IBP basis objects for each unique
  * denominator superset. These objects are just associations storing
- * denominators, and maps from scalar products into the denominatos.
+ * denominators, and maps from scalar products into the denominators.
  *
  * Also in the case when the denominator set is not sufficient
  * to form the full linear basis of scalar products, we want to
@@ -138,7 +137,7 @@ bases = denominatorsupersets //
  *
  * One practical thing to start with is to identify the set of
  * sectors (integral family subsets) that correspond to scaleless
- * integrals. This is also done with Feynson.
+ * integrals. This is also done with [Feynson].
  *)
 
 zerosectors = ZeroSectors[bases];
