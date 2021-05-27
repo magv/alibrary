@@ -68,14 +68,22 @@ and intended usage.
 [calculating loop amplitudes on a computer]: https://indico.desy.de/event/26814/contributions/94605/attachments/65148/80414/magerya-capp2021.pdf
 [code accompanying the talk]: https://indico.desy.de/event/26814/contributions/94605/attachments/65148/80413/magerya-capp2021.zip
 
+### Example usage
+
+As an example of the common usage, please take a look at:
+
+* the calculation of QCD corrections to a [photon propagator].
+
+[photon propagator]: https://magv.github.io/alibrary/example-photon-propagator.html
+
 ## Installation
 
 Download the source code, put it into a directory somewhere,
 and import it into your Mathematica session like this:
 
-    Get["/path/to/alibrary.m"];
+    Get["alibrary.m"];
 
 Alternatively, to only import generic Mathematica functions
 (those that are not related to loop amplitudes), use this:
 
-    Get["/path/to/utils.m"];
+    Get["utils.m"];

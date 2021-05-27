@@ -12,18 +12,18 @@ auto S x;
 Table sparse zerofill UNIQVALS(1);
 
 * These are the incoming and outgoing names.
-cfunction delta, epsilon4(a), deltaf(s), deltaft(s), dot(s), momentum, polarization, den, gammachain, gammatrace, spinor, slash, gamma, gamma5, colorT, colorf, sp, B;
+cfunction delta(s), epsilon4(a), deltaf(s), deltaft(s), dot(s), momentum, polarization, den, gammachain, gammatrace, spinor, slash, gamma, gamma5, colorT, colorf, sp, B;
 cfunction chargeQ, chargeV, chargeA, chargeQt, chargeVt, chargeAt;
 cfunction flvsum, flvsumt;
 cfunction inv;
 symbol I, d, ep, cut, irr;
 symbol Ca, Cf, Tf, Na, Nc, Xi, Xi2, Xi3, Xi4;
 symbol Nf, Nft, Q0, V0, A0, Q02, V02, A02, V0A0, SumQf, SumQf2, SumVf, SumVf2, SumAf, SumAf2, SumVfAf;
-symbol Bid;
+symbol BID;
 auto symbol g;
 auto index lor = d, adj = Na, fun = Nc, flv = FAIL, spn = FAIL, X = FAIL;
 auto vector p, q, l, r;
-auto symbol Bden;
+auto symbol DEN;
 auto symbol m, s;
 cfunction A, P;
 
@@ -68,16 +68,16 @@ unitTrace 4;
     repeat id flvsum(flv?, x?) * chargeQ(flv?) = flvsum(flv, x*chargeQ);
     repeat id flvsum(flv?, x?) * chargeV(flv?) = flvsum(flv, x*chargeV);
     repeat id flvsum(flv?, x?) * chargeA(flv?) = flvsum(flv, x*chargeA);
-    repeat id flvsum(flv?, x?) = flvsum(x);
-    id deltaft(flv?, flv?) = flvsumt(flv, 1);
-    repeat id flvsumt(flv?, x?) * chargeQt(flv?) = flvsum(flv, x*chargeQt);
-    repeat id flvsumt(flv?, x?) * chargeVt(flv?) = flvsum(flv, x*chargeVt);
-    repeat id flvsumt(flv?, x?) * chargeAt(flv?) = flvsum(flv, x*chargeAt);
-    repeat id flvsumt(flv?, x?) = flvsumt(x);
-    id deltaft(flv?, flv?)*chargeQt(flv?)^x1?*chargeVt(flv?)^x2?*chargeAt(flv?)^x3? = flvsum(chargeQt^x1*chargeVt^x2*chargeAt^x3);
+    id flvsum(flv?, x?) = flvsum(x);
     if (match(deltaf(x1?, x2?)) || match(chargeQ(?x)) || match(chargeA(?x)) || match(chargeV(?x)));
       exit "ERROR: flavorsumwithcharge: leftover light flavors; unexpected flavor structure?";
     endif;
+* Same but for heavy flavors.
+    id deltaft(flv?, flv?) = flvsumt(flv, 1);
+    repeat id flvsumt(flv?, x?) * chargeQt(flv?) = flvsumt(flv, x*chargeQt);
+    repeat id flvsumt(flv?, x?) * chargeVt(flv?) = flvsumt(flv, x*chargeVt);
+    repeat id flvsumt(flv?, x?) * chargeAt(flv?) = flvsumt(flv, x*chargeAt);
+    id flvsumt(flv?, x?) = flvsumt(x);
     if (match(deltaft(x1?, x2?)) || match(chargeQt(?x)) || match(chargeAt(?x)) || match(chargeVt(?x)));
       exit "ERROR: flavorsumwithcharge: leftover heavy flavors; unexpected flavor structure?";
     endif;
@@ -286,41 +286,41 @@ unitTrace 4;
 * dot(...) expansion, so extra care is devoted to it.
 *
 * Example:
-*   #procedure toBid
+*   #procedure toBID
 *     if (match(EX(x?{,1,2,3})));
-*       multiply Bid^1;
+*       multiply BID^1;
 *     elif (match(EX(x?{,4,5,6})));
-*       multiply Bid^2;
+*       multiply BID^2;
 *     endif;
 *   #endprocedure
-*   #procedure toBden
-*     if (match(only, Bid^1));
-*       id den(l1) = Bden1;
-*       id l1.l1 = Bden1^(-1);
+*   #procedure toDEN
+*     if (match(only, BID^1));
+*       id den(l1) = DEN1;
+*       id l1.l1 = DEN1^(-1);
 *       ...
-*     elif (match(only, Bid^2));
-*       id den(l1+l2) = Bden1;
-*       id l1.l2 = Bden1^(-1)-Bden2^(-1)-Bden3^(-1);
+*     elif (match(only, BID^2));
+*       id den(l1+l2) = DEN1;
+*       id l1.l2 = DEN1^(-1)-DEN2^(-1)-DEN3^(-1);
 *       ...
 *     endif;
 *   #endprocedure
-*   #call toB(5, toBid, toBden)
-#procedure toB(ndens, toBid, toBden)
+*   #call toB(5, toBID, toDEN)
+#procedure toB(ndens, toBID, toDEN)
 #call begin(toB)
     if (match(momentum(p?, lor?)));
       exit "ERROR: toB: still have momentum(); did diractrace fail?";
     endif;
-    #call `toBid'
-* First determine the set of unique Bid^n*dot(...) expressions,
-* then convert them to Bden combinations, and finally substitute
+    #call `toBID'
+* First determine the set of unique BID^n*dot(...) expressions,
+* then convert them to DEN combinations, and finally substitute
 * the results back, sorting after each substitution round.
     #if ( `EXTRASYMBOLS_' > 0 )
         exit "ERROR: toB: already have `EXTRASYMBOLS_' extra symbols at the start";
     #endif
-    repeat id once Bid^x? * dot(p1?, p2?) =  Bid^x * UNIQTAG(Bid^x * dot(p1, p2));
+    repeat id once BID^x? * dot(p1?, p2?) =  BID^x * UNIQTAG(BID^x * dot(p1, p2));
     argToExtraSymbol tonumber UNIQTAG,1;
 
-    #call `toBden'
+    #call `toDEN'
     if (match(den(?x)));
       exit "ERROR: toB: still have den() after IBP basis substitution; bad basis?";
     endif;
@@ -339,13 +339,13 @@ unitTrace 4;
     #endif
     ;
     id dot(p1?, p2?) = p1.p2;
-    #call `toBden'
-* Scalar products that did not become Bdens must be external
+    #call `toDEN'
+* Scalar products that did not become DENs must be external
 * invariants. We shall mark them with sp(...), as opposed to
 * dot(...), which is what is expected everywhere else.
     id p1?.p1? = sp(p1);
     id p1?.p2? = sp(p1, p2);
-    id Bid = 1;
+    id BID = 1;
     bracket UNIQTAG;
     #call sort(toB-convert-uniq-dots)
 
@@ -363,9 +363,9 @@ unitTrace 4;
     #enddo
 
     #if ( `ndens' > 0 )
-    id Bid^x0? * <Bden1^x1?> * ... * <Bden`ndens'^x`ndens'?> = B(x0, <x1>, ..., <x`ndens'>);
+    id BID^x0? * <DEN1^x1?> * ... * <DEN`ndens'^x`ndens'?> = B(x0, <x1>, ..., <x`ndens'>);
     #else
-    id Bid = 1;
+    id BID = 1;
     #endif
 #call end(toB)
 #endprocedure

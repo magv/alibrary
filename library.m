@@ -202,7 +202,7 @@ Amplitude[V[_, "AqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQ[flv[fi2]] \
   gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
 Amplitude[V[_, "AtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQt[flv[fi2]] \
+  (* ge *) I deltaflvt[fi2, fi3] deltafun[fi3, fi2] chargeQt[flv[fi2]] \
   gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
 Amplitude[V[_, "ZqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   (* gz *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] (
@@ -758,11 +758,11 @@ IBPBasisSanityCheck[ibpbasis_List] := (Map[IBPBasisSanityCheck, ibpbasis];)
 IBPBasisSanityCheck[IBPBasis[bid_, loopmom_List, extmom_List, dens_List, denmap_, dotmap_]] :=
 Module[{normaldens, i, dots, p1, p2, p, m},
   normaldens = dens // DeleteCases[den[_, _, irr]];
-  FailUnless[(normaldens /. denmap) === Table[bden[i], {i, Length[normaldens]}]];
-  FailUnless[(MapAt[Minus, normaldens, {;;,1}] /. denmap) === Table[bden[i], {i, Length[normaldens]}]];
+  FailUnless[(normaldens /. denmap) === Table[DEN[i], {i, Length[normaldens]}]];
+  FailUnless[(MapAt[Minus, normaldens, {;;,1}] /. denmap) === Table[DEN[i], {i, Length[normaldens]}]];
   dots = Table[{p1.p2, p2.p1}, {p1, loopmom}, {p2, Join[loopmom, extmom]}] // Flatten // Union;
   FailUnless[Map[Sort, dots] === Together[dots /.
-    dotmap /. bden[i_] :> dens[[i]] /.
+    dotmap /. DEN[i_] :> dens[[i]] /.
     den[p_] :> 1/p.p /. den[p_, m_, ___] :> 1/(p.p-m) /.
     Dot->ExpandDot /. sp[p1_] :> p1.p1 /. sp[p1_, p2_] :> p1.p2
   ]];

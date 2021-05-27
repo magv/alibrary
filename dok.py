@@ -298,14 +298,14 @@ HTML_FOOT = """\
 """
 
 STYLE_CSS = """\
-html { background: white; max-width: 800px; margin: auto; }
+html { background: white; color: #232627; box-sizing: border-box; }
 html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.2; }
-body { margin: 0 10px; }
+body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
 pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
 h3 { font-family: "Fira Mono",monospace; }
-a { text-decoration: none; }
+a { text-decoration: none; color: #2980b9; }
 a:hover, a:focus { text-decoration: underline; }
 pre, code { font-family: "Fira Mono",monospace; }
 code { font-size: 90%; }
@@ -326,8 +326,8 @@ ul ul li:after { content: " * "; color: #557; }
 ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
- html { background: black; color: white; }
- pre { background: #111; border-left-color: #334; }
+ html { background: #111; color: #eee; }
+ pre { background: #222; border-left-color: #334; }
  pre.doc { border-left-color: #433; }
 .ts { color: #234f82; }
 }

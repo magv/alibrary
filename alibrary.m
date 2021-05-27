@@ -276,9 +276,9 @@ ToB[ex_, basis_Association] := Module[{indices},
     ReplaceAll[basis["denmap"]] //
     ReplaceAll[basis["sprules"]] //
     (*Together //*)
-    Bracket[#, _bden, #&, (
+    Bracket[#, _DEN, #&, (
       indices = Table[0, Length[basis["denominators"]]];
-      # /. bden[i_]^n_. :> (indices[[i]] += n; 1) // #* B[basis["id"], Sequence @@ indices] &
+      # /. DEN[i_]^n_. :> (indices[[i]] += n; 1) // #* B[basis["id"], Sequence @@ indices] &
     ) &]&
 ]
 
@@ -289,8 +289,8 @@ ToB[ex_, basis_Association] := Module[{indices},
 IBPRelations[basis_Association] := Module[{dens, i, l, v},
   dens = basis["denominators"];
   Table[
-    Product[bden[i]^(n[i]), {i, Length[dens]}]*(
-        Sum[-2 n[i] D[dens[[i, 1]], l] sp[v, dens[[i, 1]]] bden[i], {i, Length[dens]}] +
+    Product[DEN[i]^(n[i]), {i, Length[dens]}]*(
+        Sum[-2 n[i] D[dens[[i, 1]], l] sp[v, dens[[i, 1]]] DEN[i], {i, Length[dens]}] +
         If[v === l, d, 0]
       )
     ,
@@ -342,8 +342,8 @@ VariableDimensions[expression_, dimension_] := Module[{DimOf, DimOfSymbol, ex, e
  *      "id" -> 1, "loopmom" -> {l1, l2}, "externalmom" -> {q},
  *      "sprules" -> {sp[q,q] -> qq}, "invariants" -> {qq}, "massdimensions" -> {qq -> 2},
  *      "denominators" -> { den[l1], den[l1-q], den[l2,0,irr], den[l1+l2,0,irr], den[l2+q,0,irr] },
- *      "denmap" -> <| den[l1] -> bden[1], ... |>,
- *      "nummap" -> <| sp[l1,l1] -> 1/bden[1], ... |>
+ *      "denmap" -> <| den[l1] -> DEN[1], ... |>,
+ *      "nummap" -> <| sp[l1,l1] -> 1/DEN[1], ... |>
  *     |>
  *)
 CompleteIBPBasis[bid_, denominators_List, loopmom_List, extmom_List, sprules_List] :=
@@ -396,21 +396,20 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
           "sprules" -> sprules,
           "denominators" -> dens,
           "denmap" -> (
-            MapIndexed[#1 -> bden @@ #2 &, dens] //
+            MapIndexed[#1 -> DEN @@ #2 &, dens] //
             DeleteCases[den[_, _, irr] -> _] //
             ReplaceAll[(den[p_, x___] -> y_) :> {den[p, x] -> y, den[-p, x] -> y}] //
             Flatten //
             Association
           ),
           "nummap" -> (
-            Inverse[mx].(Map[1/bden[#] &, Range[Length[mx]]] - c) //
-            Bracket[#, _bden, Factor]& //
+            Inverse[mx].(Map[1/DEN[#] &, Range[Length[mx]]] - c) //
+            Bracket[#, _DEN, Factor]& //
             MapThread[Rule, {vars, #}]& //
             Join[#, # /. sp[a_, b_] :> sp[b, a]]& //
             Association
           ),
-          "invariants" -> (sprules[[;;,2]] // CaseUnion[_Symbol]),
-          "massdimensions" -> (sprules[[;;,2]] // VariableDimensions[#, 2]&)
+          "invariants" -> ({dens // Cases[den[_, m_, ___] :> m], sprules[[;;,2]]} // CaseUnion[_Symbol])
         |>
       ]
       ,
@@ -456,7 +455,7 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
     {i, 1, Length[extmom]},
     {j, i, Length[extmom]}
   ] // Apply[Join];
-  vars = Lookup[basis, "variables", sprules[[;;,2]]//CaseUnion[_Symbol]];
+  vars = basis["invariants"];
   v1 = sps /. sprules /. x:(Alternatives@@vars) :> OLD[x];
   v2 = sps /. momperm // Map[Sort] // ReplaceAll[sprules] // ReplaceAll[x:(Alternatives@@vars) :> NEW[x]];
   v1 - v2 //
@@ -614,39 +613,39 @@ FormCallReplace[rules__] := {rules} // MapReplace[
 (* Form function to convert the current expression into B notation.
  * To be used with [[RunThroughForm]]. *)
 FormCallToB[bases_List] := MkString[
-    "#procedure toBid\n",
-    "* Assume Bid^n factor are already supplied.\n",
+    "#procedure toBID\n",
+    "* Assume BID^n factor are already supplied.\n",
     "#endprocedure\n",
-    "#procedure toBden\n",
+    "#procedure toDEN\n",
     "  ",
     bases // Map[Function[{basis},
       {
-        "if (match(only, Bid^", basis["id"], "));\n",
+        "if (match(only, BID^", basis["id"], "));\n",
         basis["denmap"] // Normal //
           Map[{
             "    id ", #[[1]]//AmpToForm, " = ",
-            #[[2]] /. basis["sprules"] /. bden[n_] :> MkString["Bden", n] // AmpToForm,
+            #[[2]] /. basis["sprules"] /. DEN[n_] :> MkString["DEN", n] // AmpToForm,
             ";\n"
           }&] // Union,
         basis["nummap"] // Normal //
           Map[{
             "    id ", #[[1]] /. sp->(Dot/*Sort) //AmpToForm, " = ",
-            #[[2]] /. basis["sprules"] /. bden[n_] :> MkString["Bden", n] // AmpToForm,
+            #[[2]] /. basis["sprules"] /. DEN[n_] :> MkString["DEN", n] // AmpToForm,
             ";\n"
           }&] // Union,
         basis["sprules"] // Normal //
           Map[{
             "    id ", #[[1]] /. sp->(Dot/*Sort) // AmpToForm, " = ",
-            #[[2]] /. bden[n_] :> MkString["Bden", n] // AmpToForm,
+            #[[2]] /. DEN[n_] :> MkString["DEN", n] // AmpToForm,
             ";\n"
           }&] // Union
       }
     ]] // Riffle[#, "  else"]&,
     "  else;\n",
-    "    exit \"ERROR: toBden: got a term without a proper Bid^n factor.\";\n",
+    "    exit \"ERROR: toDEN: got a term without a proper BID^n factor.\";\n",
     "  endif;\n",
     "#endprocedure\n",
-    "#call toB(", Length[bases[[1, "denominators"]]], ", toBid, toBden)\n"
+    "#call toB(", Length[bases[[1, "denominators"]]], ", toBID, toDEN)\n"
   ]
 
 (*
@@ -661,13 +660,12 @@ KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
 
 (* Create Kira’s `kinematics.yaml` config file.
  *)
-MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, one_Symbol] :=
+MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, variabledimensions_List] :=
   MaybeMkFile[filename,
     "kinematics:\n",
     " incoming_momenta: [", extmom // Riffle[#, ", "]&, "]\n",
     " kinematic_invariants:\n",
-    sprules[[;;,2]] //
-      VariableDimensions[#, 2]& //
+    variabledimensions //
       ReplaceAll[(var_ -> dim_) :> {"  - [", var , ", ", dim, "]\n"}],
     " scalarproduct_rules:\n",
     sprules //
@@ -676,7 +674,7 @@ MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, one_Symbol] :=
       (sp[p_] -> v_) :> {"  - [[", p//InputForm, ",", p//InputForm, "], ", v//InputForm, "]\n"},
       (sp[p1_, p2_] -> v_) :> {"  - [[", p1//InputForm, ",", p2//InputForm, "], ", v//InputForm, "]\n"}
     ] // Union,
-    " symbol_to_replace_by_one: ", one, "\n"
+    " symbol_to_replace_by_one: ", variabledimensions[[1,1]], "\n"
   ];
 
 (* Create Kira’s `integralfamilies.yaml` config file.
@@ -888,7 +886,7 @@ Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r,
  * given integrals under given bases.
  *)
 MkKiraConfig[dirname_, bases_List, blist_] :=
-Module[{bid, bids, bid2topsector, idxlist},
+Module[{bid, bids, bid2topsector, idxlist, massdims},
   EnsureDirectory[dirname];
   EnsureDirectory[dirname <> "/config"];
   bids = blist // CaseUnion[B[bid_, ___] :> bid];
@@ -897,8 +895,15 @@ Module[{bid, bids, bid2topsector, idxlist},
     bid -> (idxlist // TopSectors // Sort)
     ,
     {bid, bids}] // Association;
+  massdims = {
+      bases[[1, "sprules", ;;, 2]],
+      bases[[;;,"denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
+    } //
+    Flatten //
+    DeleteCases[0] //
+    VariableDimensions[#, 2]&;
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
-    bases[[1,"externalmom"]], bases[[1,"sprules"]], bases[[1,"invariants"]]//First];
+    bases[[1,"externalmom"]], bases[[1,"sprules"]], massdims];
   MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml", bases // Select[MemberQ[bids, #["id"]]&]];
   MkKiraJobsYaml[dirname <> "/jobs.yaml", bids, bid2topsectors, "all"];
   MkKiraIntegrals[dirname, blist];
@@ -1012,12 +1017,13 @@ KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
   MkKiraConfig[confdir, bases, ex // CaseUnion[_B]];
   If[Run[MkString["cd '", confdir, "' && kira --parallel=4 jobs.yaml"]] // TM // # =!= 0&,
     EnsureNoDirectory[confdir];
-    Error["Failed to run kira"];
+    Error["Failed to run kira in " <> confdir];
   ];
   result = KiraApplyResults[ex, confdir, bases];
   EnsureNoDirectory[confdir];
   result
 ]
+KiraIBP[bases_List] := KiraIBP[#, bases]&
 
 (* ## Export to TikZ *)
 (*
@@ -1326,11 +1332,9 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
       "    name = '", name, "',\n",
       "    loop_integral = loopint,\n",
       "    real_parameters = [",
-        Lookup[basis, "variables", basis["sprules"][[;;,2]] // CaseUnion[_Symbol]] //
-          Map[{"'", #, "'"}&] //
-          Riffle[#, ", "]&,
+        basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
       "],\n",
-      "    additional_prefactor = '(I*pi^(2-eps)/(2*pi)^(", dim, "-2*eps))^", Length[basis["loopmom"]], "',\n",
+      "    additional_prefactor = '(I*pi^(", dim/2, "-eps)/(2*pi)^(", dim, "-2*eps))^", Length[basis["loopmom"]], "',\n",
       "    decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
       "    requested_order = ", order, ",\n",
       "    form_optimization_level = 2,\n",
@@ -1344,7 +1348,10 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
       "import sys\n",
       "import os\n",
       "import pySecDec as psd\n",
-      "parameters = [float(p) for arg in sys.argv[1:] for p in arg.split(',')]\n",
+      "argmap = dict(arg.split('=') for arg in sys.argv[1:])\n",
+      "parameters = [",
+        basis["invariants"] // Map[{"float(argmap['", #, "'])"}&] // Riffle[#, ", "]&,
+      "]\n",
       "threads = int(os.environ.get('THREADS', '1'))\n",
       "libfile = './", name, "_pylink.so'\n",
       "lib = psd.integral_interface.IntegralLibrary(libfile)\n",
@@ -1398,10 +1405,11 @@ SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
  * same order as the "invariants" key of the basis. The direcory
  * should have already been prepared with [[SecDecCompile]].
  *)
-SecDecIntegrate[basedir_String, integrals_List, invariants_List, jobs_:1] :=
+SecDecIntegrate[basedir_String, integrals_List, invariantmap_List, jobs_:1] :=
 Module[{invstring,filenames},
-  (*invstring = invariants // Map[N/*CForm] // Riffle[#, ","]&;*)
-  MaybeMkFile[basedir <> "/invariants.txt", invariants // Map[N/*CForm] // Riffle[#, " "]&];
+  MaybeMkFile[basedir <> "/invariants.txt",
+    invariantmap // Sort // MapReplace[(k_ -> v_) :> {k, "=", v//N//CForm}] // Riffle[#, " "]&
+  ];
   filenames = integrals // Map[MkString[SecDecIntegralName[#], "_value.m"]&];
   SafeRun["make -j", jobs, " -C '", basedir, "' ", filenames // Riffle[#, " "]&];
   filenames // Map[SafeGet[basedir <> "/" <> #]&]
@@ -1465,7 +1473,7 @@ LoweringDRR[ex_, basis_] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, i
   op = Det[GramMatrix[Join[loopmom, extmom]] /. basis["sprules"]] /.
     basis["nummap"] /.
     basis["sprules"] /.
-    bden[n_] :> 1/OP[n] //
+    DEN[n_] :> 1/OP[n] //
     Bracket[#, _B, Together]&;
   bid = basis["id"];
   result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
