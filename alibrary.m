@@ -1468,8 +1468,14 @@ ExpandSP[ex_] := ex /. s_sp :> ExpandSP[s]
  * in (d-2) space-time dimensions as a linear combination of
  * integrals in d space-time dimensions.
  *
- * Note that Minkowski metrics is assumed. Multiply by (-1)^L
+ * Note that Minkowski metrics is assumed. Multiply by `(-1)^L`
  * to get Euclidean.
+ *
+ * Also be careful about the normalization: the integrals are
+ * assumed to use loop integration measure of `d^d l/(I Pi^(d/2))`,
+ * which is not the physical `d^d l/(2 Pi)^d`. To obtain relations
+ * between physically normalized integrals, multiply the result
+ * of this function by `(4 Pi)^L`.
  *)
 RaisingDRR[ex_, basis_] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
   loopmom = basis["loopmom"];
@@ -1497,8 +1503,11 @@ RaisingDRR[ex_, basis_] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx
  * in (d+2) space-time dimensions as a linear combination of
  * integrals in d space-time dimensions.
  *
- * Note that Minkowski metrics is assumed. Multiply by (-1)^L
+ * Note that Minkowski metrics is assumed. Multiply by `(-1)^L`
  * to get Euclidean.
+ *
+ * Same normalization issue as in [[RaisingDRR]]; divide by `(4 Pi)^L`
+ * to get the relation between physically normalized integrals.
  *)
 LoweringDRR[ex_, basis_] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
   extmom = basis["externalmom"];
