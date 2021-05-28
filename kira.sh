@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# # kira.sh
+#
 # This script is a wrapper around the `kira` executable that
 # first copies the jobs file (along with its whole directory)
 # into a temporary location, executes Kira there, and copies back

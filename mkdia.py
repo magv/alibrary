@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-# This is a wrapper over QGRAF (actually qgraf.sh) to generate amplitudes.
-# Usage: ./mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]
-# The list of particles is from qgraf-modfile.
-# The style file is qgraf-stylefile.
-# The momenta assignment: q<i> for incoming, p<i> for outgoing, l<i> for loop;
-# with the momenta conservation given by q=sum(q<i>)=sum(p<i>).
+
+# # mkdia.py
+#
+# This is a wrapper over QGraf (actually [[qgraf.sh]]) to generate amplitudes.
+#
+# Usage:
+#
+#     ./mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]
+#
+# The list of particles is from `qgraf-modfile`. The style file is `qgraf-stylefile`.
+#
+# The momenta assignment: `q<i>` for incoming, `p<i>` for outgoing, `l<i>` for loop;
+# with the momenta conservation given by `q=sum(q<i>)=sum(p<i>)`.
 
 import sys
 import re

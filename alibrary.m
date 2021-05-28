@@ -35,6 +35,10 @@ Get["library.m"];
  *
  * All the information here is directly as QGraf provides it,
  * just packaged into a Mathematica expression.
+ *
+ * To generate diagrams conveniently, use [[mkdia.py]]. Less
+ * convenient is [[qgraf.sh]]. The least conveninet is direct
+ * `qgraf` invocation.
  *)
 
 (* Because `Diagram[]` objects are not `Association`s, here are

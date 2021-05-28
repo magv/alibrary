@@ -18,6 +18,31 @@ import pygments.token
 import re
 import sys
 
+pygments_classmap = {
+    pygments.token.Token.Comment: "tc",
+    pygments.token.Token.Keyword: "tnb",
+    pygments.token.Token.Literal.Double: "ts",
+    pygments.token.Token.Literal.Interpol: "ts",
+    pygments.token.Token.Literal.Number: "tl",
+    pygments.token.Token.Literal.String: "ts",
+    pygments.token.Token.Name.Builtin: "tnb",
+    pygments.token.Token.Name.Exception: "tne",
+    pygments.token.Token.Name.Tag: "tnt",
+    pygments.token.Token.Name.Namespace: "tnt",
+    pygments.token.Token.Name.Variable.Class: "tnvc",
+    pygments.token.Token.Name.Variable: "tnv",
+    pygments.token.Token.Name.Class: "tnv",
+    pygments.token.Token.Name.Function: "tnv",
+    pygments.token.Token.Name: "tn"
+}
+for tok, classname in list(pygments_classmap.items()):
+    todo = list(tok.subtypes)
+    while todo:
+        tok = todo.pop()
+        if tok not in pygments_classmap:
+            pygments_classmap[tok] = classname
+            todo.extend(tok.subtypes)
+
 # Markdown (i.e. comment) parsing and rendering
 
 # The way this was supposed to work is that in markdown_headers
@@ -77,26 +102,13 @@ class DokRenderer(mistletoe.HTMLRenderer):
             print(f"WARNING: missing x-ref: {token.target!r}")
             return "[[" + self.render_inner(token) + "]]"
     def render_block_code(self, token):
-        towrap = {
-            pygments.token.Token.Comment: "tc",
-            pygments.token.Token.Literal.Number: "tl",
-            pygments.token.Token.Literal.Number.Float: "tc",
-            pygments.token.Token.Literal.Number.Integer: "tc",
-            pygments.token.Token.Literal.String: "ts",
-            pygments.token.Token.Name: "tn",
-            pygments.token.Token.Name.Builtin: "tnb",
-            pygments.token.Token.Name.Exception: "tne",
-            pygments.token.Token.Name.Tag: "tnt",
-            pygments.token.Token.Name.Variable: "tnv",
-            pygments.token.Token.Name.Variable.Class: "tnvc"
-        }
         inner = token.children[0].content
         lexer = pygments.lexers.get_lexer_by_name(token.language or self._code_language)
         tokens = pygments.lex(inner, lexer)
         with io.StringIO() as f:
             f.write("<pre class=\"doc\">")
             for tok, value in tokens:
-                cls = towrap.get(tok, None)
+                cls = pygments_classmap.get(tok, None)
                 if tok == pygments.token.Token.Name.Variable and value in self._xref:
                     refurl, hash = self._xref[value]
                     refurl = relurl(refurl, self._url)
@@ -125,7 +137,9 @@ def lexer_concat(lexer):
     prevtok = None
     values = []
     for tok, value in lexer:
-        if tok == prevtok:
+        if prevtok == pygments.token.Token.Comment.Single and value == "\n":
+            values.append(value)
+        elif tok == prevtok:
             values.append(value)
         else:
             if values:
@@ -147,7 +161,7 @@ def lexer_with_lineinfo(lexer):
         else:
             column += len(value)
 
-def preparse_mma(data, xref, url, toc):
+def preparse_mma(data, xref, srcfilename, url, toc):
     tokens = list(lexer_with_lineinfo(lexer_concat(pygments.lex(data, pygments.lexers.get_lexer_by_name("wl")))))
     #tokens = list(lexer_concat(pygments.lex(data, mathematica.MathematicaLexer())))
     tok_warn = (pygments.token.Token.Error,)
@@ -232,19 +246,6 @@ def tokens_strip_code(tokens):
 def format_mma(f, xref, url, tokens, toc):
     title = toc[0][1] if toc else None
     f.write(HTML_HEAD.format(baseprefix=relurl("", url), title=title))
-    towrap = {
-        pygments.token.Token.Comment: "tc",
-        pygments.token.Token.Literal.Number: "tl",
-        pygments.token.Token.Literal.Number.Float: "tc",
-        pygments.token.Token.Literal.Number.Integer: "tc",
-        pygments.token.Token.Literal.String: "ts",
-        pygments.token.Token.Name: "tn",
-        pygments.token.Token.Name.Builtin: "tnb",
-        pygments.token.Token.Name.Exception: "tne",
-        pygments.token.Token.Name.Tag: "tnt",
-        pygments.token.Token.Name.Variable: "tnv",
-        pygments.token.Token.Name.Variable.Class: "tnvc"
-    }
     lasttok = None
     for tok, value in tokens_strip_code(tokens):
         if tok == Token_Doc:
@@ -256,7 +257,7 @@ def format_mma(f, xref, url, tokens, toc):
             if lasttok == Token_Doc:
                 f.write(f"<pre>")
             lasttok = tok
-            cls = towrap.get(tok, None)
+            cls = pygments_classmap.get(tok, None)
             if tok == pygments.token.Token.Name.Variable:
                 if value in xref:
                     refurl, hash = xref[value]
@@ -278,7 +279,7 @@ MMA = (preparse_mma, format_mma)
 
 # Parsing/formatting: Markdown
 
-def preparse_md(data, xref, url, toc):
+def preparse_md(data, xref, srcfilename, url, toc):
     toc.extend(markdown_headers(data, url, xref))
     return [data]
 
@@ -289,6 +290,60 @@ def format_md(f, xref, url, data, toc):
     f.write(HTML_FOOT)
 
 MD = (preparse_md, format_md)
+
+# Parsing/formatting: generic format with line comments via #.
+
+def hash_strip_comment(value):
+    return "\n".join([
+        line[2:] if line.startswith("# ") else \
+        "" if line == "#" else \
+        line
+        for line in value.splitlines()
+    ])
+
+def preparse_hash(data, xref, srcfilename, url, toc):
+    lexer = pygments.lexers.get_lexer_for_filename(srcfilename)
+    tokens = lexer_with_lineinfo(lexer_concat(pygments.lex(data, lexer)))
+    tok_skip = (pygments.token.Token.Comment.Hashbang,)
+    tok_warn = (pygments.token.Token.Error,)
+    tok_comm = (pygments.token.Token.Comment, pygments.token.Token.Comment.Single)
+    for tok, value, lin, col in tokens:
+        if tok in tok_skip:
+            continue
+        if tok in tok_warn:
+            print(f"Warning: syntax error at {url}:{lin}:{col}, token {value!r}")
+        if col == 1 and tok in tok_comm:
+            value = hash_strip_comment(value)
+            toc.extend(markdown_headers(value, url, xref))
+            yield Token_Doc, value
+        else:
+            yield tok, value
+    toc.extend(markdown_headers(data, url, xref))
+
+def format_hash(f, xref, url, tokens, toc):
+    title = toc[0][1] if toc else None
+    f.write(HTML_HEAD.format(baseprefix=relurl("", url), title=title))
+    lasttok = None
+    for tok, value in tokens_strip_code(tokens):
+        if tok == Token_Doc:
+            if lasttok != Token_Doc:
+                f.write(f"</pre>\n")
+            lasttok = tok
+            f.write(markdown_render(value, url, xref, toc))
+        else:
+            if lasttok == Token_Doc:
+                f.write(f"<pre>")
+            lasttok = tok
+            cls = pygments_classmap.get(tok, None)
+            if cls is not None:
+                f.write(f"<span class=\"{cls}\">{value}</span>")
+            else:
+                f.write(value)
+    if lasttok != Token_Doc:
+        f.write(f"</pre>\n")
+    f.write(HTML_FOOT)
+
+HASH = (preparse_hash, format_hash)
 
 # Main
 
@@ -320,7 +375,7 @@ pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
 a { text-decoration: none; color: #2980b9; }
 a:hover, a:focus { text-decoration: underline; }
 pre, code { font-family: "Fira Mono",monospace; }
-code { font-size: 90%; }
+code { font-size: 90%; hyphens: none; }
 pre, pre code { font-size: 14px; }
 .tc { color: #969896; }
 .tl { color: #005cc5; }
@@ -385,7 +440,9 @@ if __name__ == "__main__":
         (pattern(r"*.m"), "{1}.html", MMA),
         (pattern(r"README.md"), "index.html", MD),
         (pattern(r"*/README.md"), "{1}/index.html", MD),
-        (pattern(r"*.md"), "{1}.html", MD)
+        (pattern(r"*.md"), "{1}.html", MD),
+        (pattern(r"*.py"), "{1}.html", HASH),
+        (pattern(r"*.sh"), "{1}.html", HASH)
     ]
 
     xref = {}
@@ -405,7 +462,7 @@ if __name__ == "__main__":
                     with open(fullname, "r") as f:
                         text = f.read()
                     toc = []
-                    data = list(preparse(text, xref, url, toc))
+                    data = list(preparse(text, xref, filename, url, toc))
                     fulltoc.extend(toc)
                     files.append((reldstpath, format, url, data, toc))
                     break

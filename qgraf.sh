@@ -1,18 +1,22 @@
 #!/bin/sh
-# This script improves the CLI of QGRAF by replacing its config
-# file (qgraf.dat) with command line parameters. The config is
-# then generated in a temporary directory, and QGRAF is
-# executed there.
+
+# # qgraf.sh
+#
+# This script improves the interface of QGraf by replacing its
+# config file (`qgraf.dat`) with command line parameters. The
+# config is then generated in a temporary directory, and QGraf
+# is executed there.
+#
+# The binary for QGraf is taken to be just `qgraf`, or `$QGRAF`,
+# if that environment variable is defined.
 #
 # Usage:
-#   qgraf.sh \
-#       --model=<modelfile> \
-#       --style=<stylefile> \
-#       --output=<outfile> \
-#       --<qgraf option>=<value> ...
 #
-# The binary for QGRAF is taken to be just "qgraf", or $QGRAF,
-# if that environment variable is defined.
+#     qgraf.sh \
+#         --model=<modelfile> \
+#         --style=<stylefile> \
+#         --output=<outfile> \
+#         --<qgraf option>=<value> ...
 
 tmpdir=$(mktemp -d)
 trap "rm -rf '$tmpdir'" EXIT

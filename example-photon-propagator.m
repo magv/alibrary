@@ -27,7 +27,7 @@ Get["alibrary.m"];
 
 NLOOPS = 2;
 
-(* Generate the diagrams with QGRAF by the way of `mkdia.py`.
+(* Generate the diagrams with QGraf by the way of [[mkdia.py]].
  *)
 
 SafeRun["./mkdia.py dia-A-A-", NLOOPS, ".m"];
