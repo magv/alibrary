@@ -126,7 +126,7 @@ AmpConjugate[ex_] := (ex
   (*
   (* Spin indices *must* all be internal, because there is a
    * gammachain[spinor, spn[-1], X[-1]] at each external line of
-   * fermions: here spn[-1] must be renamed, and X[-1] mustn't.
+   * fermions: here spn[-1] must be renamed, and X[-1] mustn’t.
    *)
   /. (idx : spn)[i_] :> idx[2000 + i]
   (* The rest of the indices are external if negative, and
@@ -402,7 +402,7 @@ AmpSanityCheck[ex_] := Module[{idx, termidx},
 } // RunThroughForm[FormCall["flavorsum"]]//InputForm
 *)
 
-(* Remove factors that don't have indices inside from each
+(* Remove factors that don’t have indices inside from each
  * expression in a list, apply f to the resulting list, put the
  * factors back in. *)
 AmpHideFactorsFromMap[ex_List, f_] := Module[{wheat, chaff},

@@ -1,9 +1,12 @@
 (* # Photon propagator
  *
  * In this example we will calculate symbolically and evaluate
- * numerically a photon propagator.
- *
- * To start off, for interactive development it is convenient
+ * numerically a photon propagator. The physical model is QCD
+ * with `Nf` light quarks and `Nft` heavy quarks of squared mass
+ * `mt2`.
+ *)
+
+(* To start off, for interactive development it is convenient
  * to reduce the width of Mathematica formatted output to 65
  * characters, and force it to clear the history (the `Out[]`
  * variables) so that old expressions would not linger on in
@@ -24,7 +27,7 @@ Get["alibrary.m"];
 
 NLOOPS = 2;
 
-(* First, generate the diagrams.
+(* Generate the diagrams with QGRAF by the way of `mkdia.py`.
  *)
 
 SafeRun["./mkdia.py dia-A-A-", NLOOPS, ".m"];
@@ -54,11 +57,10 @@ amplitudes2 = amplitudes /. den[0] -> 0 /. momentum[0,_] -> 0;
 Print["Non-zero amplitudes: ", amplitudes2//Count[Except[0]], " of ", amplitudes2//Length];
 
 (* In this particular example there is a set of diagrams that
- * are zero by the color factors. For example, those with
- * subdiagrams where photon turns into a single gluon. In principle
- * we could have spent some time trying to skip these during
- * diagram generation, but we don’t need to. Lets compute color
- * factors instead, and see what turns to zero.
+ * are zero by the color factors. For example, those with subdiagrams
+ * where a photon turns into a single gluon. In principle we could
+ * try to skip these during diagram generation, but we don’t need
+ * to. Lets compute color factors instead, and see what turns to zero.
  *)
 
 amplitudes3 = amplitudes2 // RunThroughForm[{ "#call colorsum\n" }];
@@ -90,14 +92,14 @@ Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union /
  *
  * The symmetries manifest most directly in the Feynman parameter
  * space, as permutations of the parameters. In the momenta space
- * this corresponds to loop momenta shifts. So what we’d like
- * to have is a set of momenta shifts that would make symmetric
+ * this corresponds to loop momenta shifts, and we would like
+ * to have a set of momenta shifts that would make symmetric
  * families explicitly identical, or identical to subsets of bigger
  * families, so we could test if a family is symmetric by just
- * asking: is the set of denominators a subset of any other family?
+ * asking if the set of denominators a subset of another family.
  *
- * Fortunately [Feynson] can figure out exactly this mapping
- * for us, and [[SymmetryMaps]] is how we’ll call it.
+ * The tool to compute this momenta mapping is [Feynson], and
+ * the interface to it is [[SymmetryMaps]].
  *
  * [feynson]: https://github.com/magv/feynson
  *)

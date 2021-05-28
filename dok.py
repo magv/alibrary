@@ -219,6 +219,16 @@ def format_toc(f, toc, xref, url):
         level -= 1
     f.write("</nav>\n")
 
+def tokens_strip_code(tokens):
+    for i, (tok, value) in enumerate(tokens):
+        if tok != Token_Doc:
+            if i-1 >= 0 and tokens[i-1][0] == Token_Doc:
+                value = re.sub(r"\A\s*\n", "", value)
+            if i+1 < len(tokens) and tokens[i+1][0] == Token_Doc:
+                value = re.sub(r"\n\s*\Z", "", value)
+        if value != "":
+            yield tok, value
+
 def format_mma(f, xref, url, tokens, toc):
     title = toc[0][1] if toc else None
     f.write(HTML_HEAD.format(baseprefix=relurl("", url), title=title))
@@ -235,16 +245,17 @@ def format_mma(f, xref, url, tokens, toc):
         pygments.token.Token.Name.Variable: "tnv",
         pygments.token.Token.Name.Variable.Class: "tnvc"
     }
-    lastmode = None
-    for tok, value in tokens:
-        mode = tok is Token_Doc#pygments.token.Token.Comment
-        if lastmode is not mode:
-            if lastmode is False: f.write(f"</pre>")
-            if mode is False: f.write(f"<pre>")
-            lastmode = mode
-        if mode is True:
+    lasttok = None
+    for tok, value in tokens_strip_code(tokens):
+        if tok == Token_Doc:
+            if lasttok != Token_Doc:
+                f.write(f"</pre>\n")
+            lasttok = tok
             f.write(markdown_render(value, url, xref, toc))
         else:
+            if lasttok == Token_Doc:
+                f.write(f"<pre>")
+            lasttok = tok
             cls = towrap.get(tok, None)
             if tok == pygments.token.Token.Name.Variable:
                 if value in xref:
@@ -259,6 +270,8 @@ def format_mma(f, xref, url, tokens, toc):
                 f.write(f"<span class=\"{cls}\">{value}</span>")
             else:
                 f.write(value)
+    if lasttok != Token_Doc:
+        f.write(f"</pre>\n")
     f.write(HTML_FOOT)
 
 MMA = (preparse_mma, format_mma)
@@ -299,7 +312,7 @@ HTML_FOOT = """\
 
 STYLE_CSS = """\
 html { background: white; color: #232627; box-sizing: border-box; }
-html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.2; }
+html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
 body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
@@ -317,8 +330,8 @@ pre, pre code { font-size: 14px; }
 .tne { color: red; }
 .tnt { color: #0c9a9a; }
 pre { overflow-x: auto; }
-pre { padding-left: 0.5em; background: #efeef0; border-left: 0.5em solid #e0e0e8; }
-pre.doc { margin-left: 2em; border-left-color: #d0e0e0; }
+pre { margin-left: 1em;}
+pre.doc { margin-left: 1em; border-left: 0.3em solid #f0f0f8; padding-left: 1em; }
 ul ul { text-align: left; }
 ul ul li { display: inline; }
 ul ul li:after { content: " * "; color: #557; }
@@ -326,7 +339,6 @@ ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: #111; color: #eee; }
- pre { background: #222; border-left-color: #334; }
  pre.doc { border-left-color: #433; }
 .ts { color: #234f82; }
 }
@@ -336,9 +348,9 @@ FAVICON_SVG = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" height="10mm" width="10mm">
  <path style="fill:none;stroke:#ef6234;stroke-width:1.5;stroke-linejoin:bevel" d="M 1,9 5,1 9,9" />
- <path style="fill:none;stroke:#6b75ca;stroke-width:1.0" d="m 2.5,6 c 4,0 3.5,2 2.5,2 -1,0 -1.5,-2 2.5,-2" />
- <circle style="fill:#222;stroke:none" cx="2.5" cy="6" r="1" />
- <circle style="fill:#222;stroke:none" cx="7.5" cy="6" r="1" />
+ <path style="fill:none;stroke:#6b95ea;stroke-width:1.0" d="m 2.5,6 c 4,0 3.5,2 2.5,2 -1,0 -1.5,-2 2.5,-2" />
+ <circle style="fill:#444;stroke:none" cx="2.5" cy="6" r="1" />
+ <circle style="fill:#444;stroke:none" cx="7.5" cy="6" r="1" />
 </svg>
 """
 
@@ -420,8 +432,3 @@ if __name__ == "__main__":
 
     create("style.css", STYLE_CSS)
     create("favicon.svg", FAVICON_SVG)
-    create("toc.html", "".join([
-        f"<h{lvl}>{name}</h{lvl}>\n" if lvl < 4 else \
-        f"<span>{name}</span> * "
-        for lvl, name in fulltoc
-    ]))

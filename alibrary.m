@@ -65,7 +65,8 @@ DiagramVertices[Diagram[_, _, _, _, _, verts_List]] := verts
  * fermions).
  *)
 DiagramClosedLoops[fieldpat_] := DiagramFieldLoops[#, fieldpat]&
-DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldpat_] := Module[{edges, SS, II, EE},
+DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldpat_] :=
+Module[{edges, SS, II, EE},
   edges = Join[
     i // Cases[ F[fieldpat, fi_, vi_, _] :> SS[fi] <-> II[vi] ],
     o // Cases[ F[fieldpat, fi_, vi_, _] :> II[vi] <-> EE[fi] ],
@@ -83,7 +84,8 @@ DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldpat_] := Modul
 DiagramSign[d_Diagram, fermionpattern_] := (-1)^DiagramClosedLoops[d, fermionpattern]
 DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
 
-(* ## Diagrams to graphs *)
+(* ## Diagrams to graphs
+ *)
 
 (* Convert a diagram to a list of undirected edges.
  *)
@@ -249,6 +251,125 @@ DiagramToTikZ[Diagram[id_, _, i_List, o_List, p_List, v_List]] := Module[{es, ni
   ]
 ]
 
+(* ## TikZ interface for diagrams
+ *)
+
+(*
+Take a graph defined by edges (pairs of nodes) and produce
+coordinates for all vertices by calling Graphviz (sfpd).
+
+Example:
+
+    In[]:= GraphLayoutVertexCoordinates[{{1,2},{1,3},{2,3}}]
+    Out[]= {1 -> {272.32, 243.6},
+            2 -> {27, 214.2},
+            3 -> {175.3, 18}}
+*)
+GraphLayoutVertexCoordinates[edges:{{_,_} ...}] := Module[{tmp, out, result},
+  tmp = MkTemp["graph", ".gv"];
+  out = tmp <> ".json";
+  MkFile[tmp,
+    "graph {\n",
+    edges // Map[Apply[List]] // MapReplace[
+      {a_, b_} /; MemberQ[legs, a|b] :> {" ", a, " -- ", b, " [len=0.2];\n"},
+      {a_, b_} :> {" ", a, " -- ", b, ";\n"}
+    ],
+    "}\n"
+  ];
+  Run["sfdp -Tjson -o", out, tmp];
+  result = Import[out];
+  DeleteFile[{tmp, out}];
+  "objects" /. result // Map[("name" /. #) -> (MkString["{", "pos" /. #, "}"] // ToExpression) &]
+]
+
+(* Create a TikZ graph file from the given edges and labels.
+ *)
+MkTikZGraph[filename_String, dx_, dy_, vleft_, vright_, edges:{{_, _, _} ...}, labels:{{_, _, _, _}...}] :=
+Module[{vertexcoords, outer, inner, sx, sy, x1, y1, x2, y2, x, y, bends, b, e, i},
+  vertexcoords = edges[[;;,;;2]] // GraphLayoutVertexCoordinates//MapAt[ToExpression, #, {;;,1}]&;
+  (* Shorten outer legs by a half. *)
+  outer = edges[[;;,;;2]] // Flatten // Union // Select[Count[edges, {#, _, _}|{_, #, _}] === 1&];
+  inner = outer // Map[Cases[edges, {#, v_, _}|{v_, #, _} :> v]& /* First];
+  vertexcoords = Join[
+    MapThread[#1->(#2+#3)/2&, {outer, outer // Map[Replace[vertexcoords]], inner // Map[Replace[vertexcoords]]}],
+    vertexcoords // DeleteCases[Rule[Alternatives @@ outer, _]]
+  ];
+  (* Scale the diagram to desired size *)
+  sx = vertexcoords // #[[;;,2,1]]& // dx/(1 + Max[#] - Min[#])&;
+  sy = vertexcoords // #[[;;,2,2]]& // dy/(1 + Max[#] - Min[#])&;
+  {x1, y1} = vleft // Replace[vertexcoords];
+  {x2, y2} = vright // Replace[vertexcoords];
+  If[x2 < x1, sx = -sx];
+  If[y2 < y1, sy = -sy];
+  vertexcoords = vertexcoords // MapReplace[Rule[v_, {x_, y_}] :> Rule[v, {(x - x1)*sx, (y - y1)*sy }]];
+  bends = <|
+    1 -> {""},
+    2 -> {", bend right", ", bend left"},
+    3 -> {", bend right=45", "", ", bend left=45"},
+    4 -> {", bend right=75, looseness=1.25", ", bend right", ", bend left", ", bend left=75, looseness=1.25"},
+    5 -> {", bend right=75, looseness=1.25", ", bend right=45", "", ", bend left=45", ", bend left=75, looseness=1.25"}
+  |>;
+  MkFile[filename,
+    "\\begin{tikzpicture}\n",
+    "\t\\begin{pgfonlayer}{nodelayer}\n",
+    vertexcoords // MapReplace[(v_ -> {x_, y_}) :>
+      {"\t\t\\node [style=", v /. { Alternatives @@ outer -> "none", _ -> "dot"}, "] (", v, ") at (",
+        x // Round[#, 0.25]& // NumberForm[#, {Infinity,3}]&, ", ",
+        y // Round[#, 0.25]& // NumberForm[#, {Infinity,3}]&, ") {};\n"}
+    ],
+    labels // MapReplace[{v1_, v2_, style_, text_} :> (
+      {x, y} = ((v1 // Replace[vertexcoords]) + (v2 // Replace[vertexcoords]))/2;
+      {"\t\t\\node [style=", style, "] (", v1, ":", v2, ") at (",
+        x // Round[#, 0.125]& // NumberForm[#, {Infinity,3}]&, ", ",
+        y // Round[#, 0.125]& // NumberForm[#, {Infinity,3}]&, ") {", text, "};\n"}
+    )],
+    "	\\end{pgfonlayer}\n",
+    "	\\begin{pgfonlayer}{edgelayer}\n",
+    edges //
+      GroupBy[Sort[#[[;;2]]]&] //
+      Values //
+      Map[Function[{edgs},
+        b = bends[Length[edgs]];
+        Table[
+          e = edgs[[i]];
+          {"\t\t\\draw [style=", e[[3]], b[[If[Sort[e[[;;2]]]===e[[;;2]], i, Length[edgs]+1-i]]], If[e[[1]] === e[[2]], ", loop", ""], "] (", e[[1]], ") to (", e[[2]], ");\n"},
+          {i, Length[edgs]}
+        ]
+      ]],
+    "	\\end{pgfonlayer}\n",
+    "\\end{tikzpicture}\n"
+  ];
+];
+
+(* Create a TikZ file for an integral with given indices. The
+ * indices should come in the same order as the propagators of
+ * the diagram. Only non-negative indices work at the moment.
+ *)
+MkIntegralTikZ[filename_String, Diagram[_, _, ifld_List, ofld_List, props_List, verts_List], indices_List] :=
+Module[{toremove, shrinkgr, vimap},
+  FailUnless[Length[props] === Length[indices]];
+  toremove = indices // PositionIndex // Lookup[#, 0, {}]&;
+  vimap = Graph[verts[[;;,1]], props[[toremove, 4;;5]] // Map[Apply[UndirectedEdge]]] //
+    ConnectedComponents //
+    Select[Length[#] > 1&] //
+    Map[Sort] //
+    Map[Alternatives @@ # -> First[#]&];
+  field2style = {"t" -> "top", _ -> "edge"};
+  ifield2style = {"t"|"T" -> "incoming top", _ -> "incoming"};
+  ofield2style = {"t"|"T" -> "outgoing top", "H" -> "outgoing higgs", _ -> "outgoing"};
+  MkTikZGraph[filename, 3.0, 2.0, -1, -2, Join[
+      ifld /. F[f_, fi_, vi_, mom_] :> {fi, vi /. vimap, f /. ifield2style},
+      ofld /. F[f_, fi_, vi_, mom_] :> {vi /. vimap, fi, f /. ofield2style},
+      Transpose[{props, indices}] // Map[Replace[{
+        {_P, 0} :> Nothing,
+        {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], 1} :> {vi1 /. vimap, vi2 /. vimap, f /. field2style},
+        {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], idx_} :> {vi1 /. vimap, vi2 /. vimap, (f /. field2style) <> ",style=edge dot" <> ToString[idx-1]}
+      }]]
+    ],
+    {}
+  ];
+]
+
 (*
  * ## IBP Bases
  *)
@@ -308,7 +429,8 @@ IBPRelations[basis_Association] := Module[{dens, i, l, v},
  *     Out[1]= {m -> 1, q -> 1}
  *)
 VariableDimensions[{}, _] := {}
-VariableDimensions[expression_, dimension_] := Module[{DimOf, DimOfSymbol, ex, eqns, solution},
+VariableDimensions[expression_, dimension_] :=
+Module[{DimOf, DimOfSymbol, ex, eqns, solution},
   DimOf[ex_List] := (
     ex // Map[Sow[DimOf[#] == DimOf[ex[[1]]]]&];
     DimOf[ex[[1]]]
@@ -468,7 +590,7 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
 ]
 
 (*
- * ## Feynson
+ * ## Feynson interface for integral symmetries
  *)
 
 (* By default look for Feynson in the current directory. *)
@@ -524,7 +646,7 @@ Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
 SymmetryMaps[families_List, loopmom_List, extmom_List] := SymmetryMaps[families, loopmom, extmom, {}]
 
 (*
- * ## FORM
+ * ## FORM interface for integrand transformation
  *)
 
 If[Not[MatchQ[$FORM, _String]], $FORM = "tform -w4"; ];
@@ -649,7 +771,7 @@ FormCallToB[bases_List] := MkString[
   ]
 
 (*
- * ## Kira interface
+ * ## Kira interface for IBP reduction
  *)
 (* Kira sorts bases by name instead of adhering to the order
  * of definition. We shall make sure that both the numerical
@@ -1025,128 +1147,16 @@ KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
 ]
 KiraIBP[bases_List] := KiraIBP[#, bases]&
 
-(* ## Export to TikZ *)
 (*
-Take a graph defined by edges (pairs of nodes) and produce
-coordinates for all vertices by calling Graphviz (sfpd).
-
-Example:
-
-    In[]:= GraphLayoutVertexCoordinates[{{1,2},{1,3},{2,3}}]
-    Out[]= {1 -> {272.32, 243.6},
-            2 -> {27, 214.2},
-            3 -> {175.3, 18}}
-*)
-GraphLayoutVertexCoordinates[edges:{{_,_} ...}] := Module[{tmp, out, result},
-  tmp = MkTemp["graph", ".gv"];
-  out = tmp <> ".json";
-  MkFile[tmp,
-    "graph {\n",
-    edges // Map[Apply[List]] // MapReplace[
-      {a_, b_} /; MemberQ[legs, a|b] :> {" ", a, " -- ", b, " [len=0.2];\n"},
-      {a_, b_} :> {" ", a, " -- ", b, ";\n"}
-    ],
-    "}\n"
-  ];
-  Run["sfdp -Tjson -o", out, tmp];
-  result = Import[out];
-  DeleteFile[{tmp, out}];
-  "objects" /. result // Map[("name" /. #) -> (MkString["{", "pos" /. #, "}"] // ToExpression) &]
-]
-
-MkTikZGraph[filename_String, dx_, dy_, vleft_, vright_, edges:{{_, _, _} ...}, labels:{{_, _, _, _}...}] :=
-Module[{vertexcoords, outer, inner, sx, sy, x1, y1, x2, y2, x, y, bends, b, e, i},
-  vertexcoords = edges[[;;,;;2]] // GraphLayoutVertexCoordinates//MapAt[ToExpression, #, {;;,1}]&;
-  (* Shorten outer legs by a half. *)
-  outer = edges[[;;,;;2]] // Flatten // Union // Select[Count[edges, {#, _, _}|{_, #, _}] === 1&];
-  inner = outer // Map[Cases[edges, {#, v_, _}|{v_, #, _} :> v]& /* First];
-  vertexcoords = Join[
-    MapThread[#1->(#2+#3)/2&, {outer, outer // Map[Replace[vertexcoords]], inner // Map[Replace[vertexcoords]]}],
-    vertexcoords // DeleteCases[Rule[Alternatives @@ outer, _]]
-  ];
-  (* Scale the diagram to desired size *)
-  sx = vertexcoords // #[[;;,2,1]]& // dx/(1 + Max[#] - Min[#])&;
-  sy = vertexcoords // #[[;;,2,2]]& // dy/(1 + Max[#] - Min[#])&;
-  {x1, y1} = vleft // Replace[vertexcoords];
-  {x2, y2} = vright // Replace[vertexcoords];
-  If[x2 < x1, sx = -sx];
-  If[y2 < y1, sy = -sy];
-  vertexcoords = vertexcoords // MapReplace[Rule[v_, {x_, y_}] :> Rule[v, {(x - x1)*sx, (y - y1)*sy }]];
-  bends = <|
-    1 -> {""},
-    2 -> {", bend right", ", bend left"},
-    3 -> {", bend right=45", "", ", bend left=45"},
-    4 -> {", bend right=75, looseness=1.25", ", bend right", ", bend left", ", bend left=75, looseness=1.25"},
-    5 -> {", bend right=75, looseness=1.25", ", bend right=45", "", ", bend left=45", ", bend left=75, looseness=1.25"}
-  |>;
-  MkFile[filename,
-    "\\begin{tikzpicture}\n",
-    "\t\\begin{pgfonlayer}{nodelayer}\n",
-    vertexcoords // MapReplace[(v_ -> {x_, y_}) :>
-      {"\t\t\\node [style=", v /. { Alternatives @@ outer -> "none", _ -> "dot"}, "] (", v, ") at (",
-        x // Round[#, 0.25]& // NumberForm[#, {Infinity,3}]&, ", ",
-        y // Round[#, 0.25]& // NumberForm[#, {Infinity,3}]&, ") {};\n"}
-    ],
-    labels // MapReplace[{v1_, v2_, style_, text_} :> (
-      {x, y} = ((v1 // Replace[vertexcoords]) + (v2 // Replace[vertexcoords]))/2;
-      {"\t\t\\node [style=", style, "] (", v1, ":", v2, ") at (",
-        x // Round[#, 0.125]& // NumberForm[#, {Infinity,3}]&, ", ",
-        y // Round[#, 0.125]& // NumberForm[#, {Infinity,3}]&, ") {", text, "};\n"}
-    )],
-    "	\\end{pgfonlayer}\n",
-    "	\\begin{pgfonlayer}{edgelayer}\n",
-    edges //
-      GroupBy[Sort[#[[;;2]]]&] //
-      Values //
-      Map[Function[{edgs},
-        b = bends[Length[edgs]];
-        Table[
-          e = edgs[[i]];
-          {"\t\t\\draw [style=", e[[3]], b[[If[Sort[e[[;;2]]]===e[[;;2]], i, Length[edgs]+1-i]]], If[e[[1]] === e[[2]], ", loop", ""], "] (", e[[1]], ") to (", e[[2]], ");\n"},
-          {i, Length[edgs]}
-        ]
-      ]],
-    "	\\end{pgfonlayer}\n",
-    "\\end{tikzpicture}\n"
-  ];
-];
-
-(* Create a TikZ file for an integral with given indices. The
- * indices should come in the same order as the propagators of
- * the diagram. Only non-negative indices work at the moment.
- *)
-MkIntegralTikZ[filename_String, Diagram[_, _, ifld_List, ofld_List, props_List, verts_List], indices_List] :=
-Module[{toremove, shrinkgr, vimap},
-  FailUnless[Length[props] === Length[indices]];
-  toremove = indices // PositionIndex // Lookup[#, 0, {}]&;
-  vimap = Graph[verts[[;;,1]], props[[toremove, 4;;5]] // Map[Apply[UndirectedEdge]]] //
-    ConnectedComponents //
-    Select[Length[#] > 1&] //
-    Map[Sort] //
-    Map[Alternatives @@ # -> First[#]&];
-  field2style = {"t" -> "top", _ -> "edge"};
-  ifield2style = {"t"|"T" -> "incoming top", _ -> "incoming"};
-  ofield2style = {"t"|"T" -> "outgoing top", "H" -> "outgoing higgs", _ -> "outgoing"};
-  MkTikZGraph[filename, 3.0, 2.0, -1, -2, Join[
-      ifld /. F[f_, fi_, vi_, mom_] :> {fi, vi /. vimap, f /. ifield2style},
-      ofld /. F[f_, fi_, vi_, mom_] :> {vi /. vimap, fi, f /. ofield2style},
-      Transpose[{props, indices}] // Map[Replace[{
-        {_P, 0} :> Nothing,
-        {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], 1} :> {vi1 /. vimap, vi2 /. vimap, f /. field2style},
-        {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], idx_} :> {vi1 /. vimap, vi2 /. vimap, (f /. field2style) <> ",style=edge dot" <> ToString[idx-1]}
-      }]]
-    ],
-    {}
-  ];
-]
-
-(*
- * ## Export to FIRE & LiteRed
+ * ## FIRE & LiteRed interface for IBP reduction
  *)
 
 TrailingIrr[denominators_] := denominators /. {___, trail:Longest[den[_, _, irr] ...]} :> Length[{trail}]
 LeadingIrr[denominators_] := denominators /. {lead:Longest[den[_, _, irr] ...], ___} :> Length[{lead}]
 
+(* Use FIRE and LiteRed to prepare the basis definition and
+ * symmetry files that FIRE will need for the reduction.
+ *)
 PrepareFireStart[basis_, confdir_String] := PrepareFireStart[basis, confdir, {}]
 PrepareFireStart[basis_, confdir_String, invariantrules_] :=
 Module[{tmpdir, props},
@@ -1260,9 +1270,8 @@ LoadFireTables[filename_, coeff_: Identity, JoinTerms_: True] := Module[{temp, G
     Rule @@@ temp // ReplaceAll[G[bid_, idx_List] :> B[bid, Sequence @@ idx]]
  ]
 
-
 (*
- * ## Interface to pySecDec
+ * ## pySecDec interface for numerical evaluation of integrals
  *)
 
 (* Convert an integral name (`B` notation) into a filename.
@@ -1288,6 +1297,22 @@ SecDecIntegralName[DimShift[integral_B, n_]] :=
  *
  * One can alternatively use [[SecDecCompile]] to both prepare
  * and compile.
+ *
+ * The resulting directory consists of a `Makefile` and a set
+ * of python scripts. While compilation can be performed by just
+ * `make compile`, there are two provisions to parallelize the
+ * compilation: the `THREADS` environment variable which sets
+ * how many threads should comilation of a single integral use,
+ * and the `RUN` variable that is inserted as a prefix before
+ * the slow generation and compilation commands. The intent is
+ * for you to be able to set `RUN` to the command that executes
+ * its arguments on a cluster (e.g. `srun -c 10 --mem=10G`),
+ * and `THREADS` to the number of processes to use on the remote
+ * machine (e.g. `10`). With these two set, `make -j99 compile`
+ * will parallelize the compilation across 99 cluster machines.
+ *
+ * Of course, `make -j99 compile` will also work well on a local
+ * machine, if it has 99 processors and lots of free memory.
  *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
 Module[{name, basisid, indices, basis, integral, p, m, dim, order},
@@ -1373,8 +1398,8 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
       }];
       {
         "\n",
-        "integrate: ", name , "_value.m\n",
         "compile: ", name , "_pylink.so\n",
+        "integrate: ", name , "_value.m\n",
         "\n",
         name, "_pylink.so: ", name, ".generate.py\n",
         "\trm -rf ", name, "/\n",
@@ -1401,9 +1426,13 @@ SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
 ]
 
 (* Integrate a set of integrals at a given phase-space point
- * given by a list of invariant values. The invariants come in the
- * same order as the "invariants" key of the basis. The direcory
- * should have already been prepared with [[SecDecCompile]].
+ * given by a map of invariant values. The direcory should
+ * have already been prepared with [[SecDecPrepare]], and
+ * optionally compiled with [[SecDecCompile]].
+ *
+ * Here the same setup as with [[SecDecPrepare]] is used:
+ * you can set the `THREADS` and `RUN` environment variables to
+ * parallelize the integration.
  *)
 SecDecIntegrate[basedir_String, integrals_List, invariantmap_List, jobs_:1] :=
 Module[{invstring,filenames},
