@@ -42,3 +42,21 @@ FailUnless[
   ExpandScalarProducts[x|y|z|q][sp[x+y, x-y]] === sp[x,x] - sp[y,y],
   ExpandScalarProducts[x|y|z|q][sp[a x + b y, c x]] === a c sp[x,x] + b c sp[x,y]
 ]
+
+Module[{basis, cbasis1, cbasis2},
+  basis = CompleteIBPBasis[1,
+    {den[l], den[l+k1], den[l+k2], den[l+k3]},
+    {l},
+    {k1, k2, k3},
+    {sp[k1,k2]->sp12, sp[k1,k3]->sp13, sp[k2,k3]->sp23, sp[k1,k1]->0, sp[k2,k2]->0, sp[k3,k3]->0}
+  ];
+  FailUnless[SameQ[
+    Sort[InvariantMapUnderMomentaPermutation[basis, {k1->k2,k2->k1}]],
+    Sort[{sp13->sp23, sp23->sp13}]
+  ]];
+  cbasis1 = IBPBasisCross[2, basis, {k1->k2,k2->k1}];
+  cbasis2 = IBPBasisCross[1, cbasis1, {k1->k2,k2->k1}];
+  FailUnless[ Not[IBPBasisSameQ[basis, cbasis1]] ];
+  FailUnless[ IBPBasisSameQ[basis, cbasis2] ];
+]
+

@@ -579,19 +579,33 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
     Sort[sp[extmom[[i]], extmom[[j]]]]
     ,
     {i, 1, Length[extmom]},
-    {j, i, Length[extmom]}
-  ] // Apply[Join];
+    {j, 1, Length[extmom]}
+  ] // Apply[Join] // Union;
   vars = basis["invariants"];
   v1 = sps /. sprules /. x:(Alternatives@@vars) :> OLD[x];
   v2 = sps /. momperm // Map[Sort] // ReplaceAll[sprules] // ReplaceAll[x:(Alternatives@@vars) :> NEW[x]];
   v1 - v2 //
     Map[#==0&] //
-    Solve[#, vars //
-    Map[OLD]]& //
+    Solve[#, vars // Map[OLD]]& //
     Only //
     ReplaceAll[(NEW|OLD)[x_] :> x] //
     DeleteCases[x_ -> x_]
 ]
+
+(* Return a copy of the basis, but with permuted external momenta. *)
+IBPBasisCross[bid_, basis_, externalmommap_] := Module[{invmap},
+  invmap = InvariantMapUnderMomentaPermutation[basis, externalmommap];
+  basis //
+    Map[ReplaceAll[invmap]] //
+    Append[#, "id" -> bid] & //
+    Append[#, "externalmom" -> basis["externalmom"]] & //
+    Append[#, "invariants" -> basis["invariants"]] & //
+    Append[#, "nummap" -> (#["nummap"] // Map[Bracket[#, _DEN, Factor]&])] &
+]
+
+(* Check if two bases are identical, up to the order of keys.
+ *)
+IBPBasisSameQ[b1_, b2_] := Sort[Normal[b1]] === Sort[Normal[b2]]
 
 (*
  * ## Feynson interface for integral symmetries
