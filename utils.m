@@ -193,8 +193,6 @@ Error[msg__] := If[Length[Cases[$CommandLine, "-script"]] > 0,
 
 (* Fail the computation unless a condition is met. Useful for
  * assetions and unit tests. *)
-ClearAll[FailUnless];
-SetAttributes[FailUnless, {HoldAll}]
 FailUnless[tests___] := Module[{test, idx, result},
   Do[
     test = Extract[Hold[tests], {idx}, HoldForm];
@@ -216,7 +214,12 @@ FailUnless[tests___] := Module[{test, idx, result},
     ,
     {idx, Length[Hold[tests]]}];
 ];
+SetAttributes[FailUnless, {HoldAll}]
 
+(* Format a quantity in a human-readable format using the given
+ * units. The units are specified as a list of string names and
+ * numeric values.
+ *)
 FormatAmount[units_List] := FormatAmount[#, units]&
 FormatAmount[amount_, units_List] := Module[{i, a},
   For[i = 1, i < Length[units] - 1 && amount > units[[i+1,2]]*0.95, i++, True];
@@ -224,11 +227,15 @@ FormatAmount[amount_, units_List] := Module[{i, a},
   MkString[NumberForm[a, {Infinity, 3}], units[[i,1]]]
 ]
 
-(* Format bytes in human-readable format. *)
+(* Format bytes in human-readable format.
+ *)
 FormatBytes[amount_] := FormatAmount[amount, {
   {"B", 1}, {"kB", 2^10}, {"MB", 2^20}, {"GB", 2^30}, {"TB", 2^40},
   {"PB", 2^50}, {"EB", 2^60}, {"ZB", 2^70}, {"YB", 2^80}
 }]
+
+(* Format seconds in human-readable format.
+ *)
 FormatSeconds[amount_] := FormatAmount[amount, {
   {"s", 1}, {"m", 60}, {"h", 3600}, {"d", 24*3600}, {"w", 7*24*3600},
   {"y", 365*24*3600}
@@ -381,15 +388,6 @@ Bracket[ex_, vars_List, coeff_, stemf_] := Bracket[ex, Alternatives @@ vars, coe
 Bracket[ex_, pat_, coeff_, stemf_] :=
   ex // Expand[#, pat]& // Terms // Map[Factors /* (Times @@@ {Cases[#, pat^_.], DeleteCases[#, pat^_.]} &)] //
     GroupBy[First] // Normal //
-    Map[stemf[#[[1]]] coeff[Plus @@ #[[2, ;; , 2]]] &] // Apply[Plus]
-
-AntiBracket[ex_List, pat_, coeff_, stemf_] := Map[AntiBracket[#, pat, coeff, stemf] &, ex]
-AntiBracket[ex_SeriesData, pat_, coeff_, stemf_] := MapAt[AntiBracket[#, pat, coeff, stemf] &, ex, 3]
-AntiBracket[ex_, pat_] := AntiBracket[ex, pat, #&, #&]
-AntiBracket[ex_, pat_, coeff_] := AntiBracket[ex, pat, coeff, #&]
-AntiBracket[ex_, vars_List, coeff_, stemf_] := AntiBracket[ex, Alternatives @@ vars, coeff, stemf]
-AntiBracket[ex_, pat_, coeff_, stemf_] :=
- ex // Expand // Terms // Map[Factors /* (Times @@@ {DeleteCases[#, pat^_.], Cases[#, pat^_.]} &)] // GroupBy[First] // Normal //
     Map[stemf[#[[1]]] coeff[Plus @@ #[[2, ;; , 2]]] &] // Apply[Plus]
 
 (* Print the time it takes to evaluate its argument, and return
@@ -1395,8 +1393,6 @@ HPLToHpl[ex_] := ex /. HPL[w_List, x_] :> Hpl[x, w]
 Hpl1ExtractTrail0[ex_] := ex /. Hpl[1, {0 ..}] -> 0 /. Hpl[1, {w__, a:Longest[0 ..]}] :>
     (HplMToA[{w}] // (-1)^Length[{a}] (AllMerges[#[[;;-2]], {a} // Reverse] // Map[Append[#[[-1]]]] // Map[Hpl[1, HplAToM[#]]&] // Apply[Plus])&)
 
-Assert[Hpl[1, {0, 0, 0, 2, 0, 0, 0}] // Hpl1ExtractTrail0 // # === -35 Hpl[1, {8}]&];
-
 ClearAll[HplToMzv];
 HplToMzv[Hpl[1, {0 ..}]] := 0
 HplToMzv[Hpl[1, {m_?Positive}]] := Mzv[m]
@@ -1405,8 +1401,6 @@ HplToMzv[Hpl[1, {w__, a:Longest[0 ..]}]] :=
     HplMToA[{w}] // (-1)^Length[{a}] (AllMerges[#[[;;-2]], {a} // Reverse] // Map[Append[#[[-1]]]] // Map[HplToMzv[Hpl[1, HplAToM[#]]]&] // Flatten // Apply[Plus])&
 HplToMzv[Hpl[1, w_List]] := HplAToM[w] // (-1)^Count[#, _?Negative] Mzv[#[[1]], #[[2;;]]*Map[If[Negative[#], -1, 1]&, #[[;;-2]]]//Apply[Sequence]] &
 HplToMzv[ex_] := ex /. h:Hpl[1, _List] :> HplToMzv[h]
-
-Assert[Hpl[1, {0, 0, 0, 2, 0, 0, 0}] // HplToMzv // # === -35 Mzv[8]&];
 
 HlogToMzv[ex_] := ex /. Hlog[1, w:{(0|1|-1) ..}] :> (-1)^(Count[w, 1]) HplToMzv[Hpl[1, HplAToM[w]]]
 
@@ -1445,31 +1439,6 @@ Hpl2dToHlog[ex_] := ex /. {
     Hpl2d[x_, w:{(0 | 1 | 1-z_Symbol | z_Symbol) ..}] :> ((-1)^Count[w, 1 | 1-zz_Symbol] Hlog[x, w // Map[Replace[zz_Symbol -> -zz]]]),
     h_Hpl2d :> Error["Can't convert to Hlog: ", h]
 }
-
-(* ## Tests
- *)
-
-(*On[Assert]*)
-
-Assert[Module[{e = y + x y + 1/x/(x - a)/(x + 1) + Hlog[x, {1, y, 3}]/x},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-Assert[Module[{e = 10 Hlog[x, {a, b, c}]},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-Assert[Module[{e = y x^3/(x-b) + w x / (x-c) + z x^3/(x-d) Hlog[x, {e, f}]},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-Assert[Module[{e = y x^3 Hlog[x, {a}]},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-Assert[Module[{e = y x^2 Hlog[x, {a, b, c}]},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-Assert[Module[{e = (x^3 + 1)/(x - 1) Hlog[x, {a, b}]},
-    FullSimplify[D[HlogInt[e, x], x] - e] === 0]]
-
-end;
 
 (*
  * Graph construction from propagators

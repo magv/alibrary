@@ -2,8 +2,8 @@
  *
  * In this example we will calculate symbolically and evaluate
  * numerically a photon propagator. The physical model is QCD
- * with `Nf` light quarks and `Nft` heavy quarks of squared mass
- * `mt2`.
+ * with generic color group (symbolic Nc, Ca, Cf, etc), `Nf`
+ * light quarks, and `Nft` heavy quarks of squared mass `mt2`.
  *)
 
 (* To start off, for interactive development it is convenient

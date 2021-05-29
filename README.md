@@ -46,15 +46,38 @@ a work in progress; sorry.
 ## Documentation
 
 The documentation currently lives at [magv.github.io/alibrary]
-and consists of the following annotated source files:
+and consists of the following main annotated source files:
 
 * [alibrary.m], the main library;
-* [utils.m], the generic Mathematica helper functions.
+* [utils.m], the generic Mathematica helper functions;
+* [atestsuite.m], the test suite for the above.
 
-That’s not much, but the plan is to improve it.
+And also the following auxiliary source files:
+
+* [doc.py], the documentation generator;
+* [kira.sh], the Kira command line wrapper;
+* [library.m], older code that is to be cleaned up and merged into [alibrary.m];
+* [mkdia.py], the higher-level diagram generator;
+* [qgraf.sh], the QGraf command line wrapper.
+
+Finally, the following files remain undocumented:
+
+* color.h;
+* library.frm;
+* qgraf-modfile;
+* qgraf-stylefile.
+
+The documentation is not really complete, but the plan is to
+gradually improve it.
 
 [magv.github.io/alibrary]: https://magv.github.io/alibrary/
 [alibrary.m]: https://magv.github.io/alibrary/alibrary.html
+[atestsuite.m]: https://magv.github.io/alibrary/atestsuite.html
+[doc.py]: https://magv.github.io/alibrary/doc.html
+[kira.sh]: https://magv.github.io/alibrary/kira.html
+[library.m]: https://magv.github.io/alibrary/library.html
+[mkdia.py]: https://magv.github.io/alibrary/mkdia.html
+[qgraf.sh]: https://magv.github.io/alibrary/qgraf.html
 [utils.m]: https://magv.github.io/alibrary/utils.html
 
 Additionally, the author gave a talk at [CAPP 2021] about

@@ -3,7 +3,7 @@
 # Needed packages:
 #   pip3 install mistletoe pygments pygments-mathematica
 
-# Docommentation.
+# Docommentation generator.
 
 import glob
 import io
@@ -51,7 +51,7 @@ for tok, classname in list(pygments_classmap.items()):
 # would render the AST that was parsed here. Unfortunately no
 # Python library actually provides usable AST for Markdown, which
 # is why we will be parsing the text twice, and which is also why
-# there is a duplication of code between DokPreRenderer and DokRenderer.
+# there is a duplication of code between DocPreRenderer and DocRenderer.
 
 class CrossReferenceToken(mistletoe.span_token.SpanToken):
     pattern = re.compile(r"\[\[ *(.+?) *\]\]")
@@ -61,7 +61,7 @@ class CrossReferenceToken(mistletoe.span_token.SpanToken):
 def name_to_id(text):
     return "".join(word.capitalize() for word in re.split("\\W+", text))
 
-class DokPreRenderer(mistletoe.HTMLRenderer):
+class DocPreRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref):
         super().__init__(CrossReferenceToken)
         self._toc = []
@@ -74,7 +74,7 @@ class DokPreRenderer(mistletoe.HTMLRenderer):
         self._xref[title] = (self._url, "#" + name_to_id(title))
         return ""
 
-class DokRenderer(mistletoe.HTMLRenderer):
+class DocRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref, toc, code_language="wl"):
         super().__init__(CrossReferenceToken)
         self._url = url
@@ -121,12 +121,12 @@ class DokRenderer(mistletoe.HTMLRenderer):
             return f.getvalue()
 
 def markdown_headers(text, url, xref):
-    with DokPreRenderer(url, xref) as renderer:
+    with DocPreRenderer(url, xref) as renderer:
         renderer.render(mistletoe.Document(text))
         return renderer._toc
 
 def markdown_render(text, url, xref, toc):
-    with DokRenderer(url, xref, toc) as renderer:
+    with DocRenderer(url, xref, toc) as renderer:
         return renderer.render(mistletoe.Document(text))
 
 # Parsing/formatting: Mathematica
