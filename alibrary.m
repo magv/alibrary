@@ -612,14 +612,14 @@ IBPBasisSameQ[b1_, b2_] := Sort[Normal[b1]] === Sort[Normal[b2]]
  *)
 
 (* By default look for Feynson in the current directory. *)
-If[Not[MatchQ[$Feynson, _String]], $Feynson = "./feynson"; ];
+If[Not[MatchQ[$Feynson, _String]], $Feynson = "./feynson -q -j4"; ];
 
 (* Calculate the zero sectors of a given basis. Return a list,
  * each element being `B[basis-id, (1|0), ...]`, listing the topmost
  * zero sectors.
  *)
 ZeroSectors[basis_] :=
-  RunThrough[$Feynson <> " zero-sectors -sqj3 -", {
+  RunThrough[$Feynson <> " zero-sectors -sj3 -", {
       basis["denominators"] /.
         den[p_] :> p^2 /.
         den[p_, m_] :> p^2-m /.
@@ -653,15 +653,57 @@ ZeroSectorPattern[bases_List] := bases // Map[ZeroSectorPattern] // Apply[Altern
  * You can use [[UniqueSupertopologyMapping]] to figure out the
  * topmost supertopologies after this.
  *)
-SymmetryMaps[families_List, loopmom_List, extmom_List, sprules_] :=
+SymmetryMaps[families_List, loopmom_List, sprules_] :=
 Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
   densets = families // NormalizeDens // Map[
     CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopmom]]
   ];
   densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
-  RunThrough[$Feynson <> " symmetrize -j4 -q -", {densets, loopmom, sprules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
+  RunThrough[$Feynson <> " symmetrize -", {densets, loopmom, sprules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
 ];
-SymmetryMaps[families_List, loopmom_List, extmom_List] := SymmetryMaps[families, loopmom, extmom, {}]
+SymmetryMaps[families_List, loopmom_List] := SymmetryMaps[families, loopmom, {}]
+
+(* Determine if the latter families of integrals can be expressed
+ * in terms of the earlier ones. For each family (defined by a list
+ * of `den[]` expression) return either `{}` if it is unique, or
+ * `{fam, {n1, n2, ...}}`, meaning that any integral in the
+ * given family with indices `{i_1,i_2,...}` is equal to an
+ * integral in the family number `fam` with indices `{i_n1,i_n2,...}`.
+ *)
+IntegralFamilyEquivalence[densets_List, loopmom_List, sprules_List] := Module[{},
+  RunThrough[$Feynson <> " mapping-rules -", {
+    densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT,
+    loopmom, sprules // Map[Apply[List]]
+  }]
+]
+
+(* Take a list of integrals (in the `B` notation) and a list of bases,
+ * and return a list of integrals with all symmetric duplicates
+ * removed.
+ *)
+IntegralUnion[integrals_List, bases_List] := Module[{bid2basis, densets},
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
+  densets = integrals //
+    MapReplace[
+      B[bid_, idx___] :> MapThread[Which[
+        #2 === 0, Nothing,
+        #2 === 1, #1,
+        True, #1 - MkExpression["POW", #2]
+      ]&, {bid2basis[bid]["denominators"], {idx}}]
+    ];
+  densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
+  IntegralFamilyEquivalence[
+    densets//PR,
+    bases[[1, "loopmom"]],
+    bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
+  ] //
+    MapIndexed[Replace[#1, {} -> {First[#2], densets[[First[#2]]] // Length // Range}]&]//
+    MapAt[Replace[Except[0] -> 1], #, {;;, 2, ;;}]& //
+    PositionIndex //
+    Values //
+    Map[First] //
+    integrals[[#]]&
+]
 
 (*
  * ## FORM interface for integrand transformation
