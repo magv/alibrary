@@ -6,7 +6,10 @@
  * ## Misc
  *)
 
+(* Check if `a <= b` in the sense of `OrderedQ`. *)
 LessOrEqualQ[a_, b_] := OrderedQ[{a, b}]
+
+(* Check if `a < b` in the sense of `OrderedQ`. *)
 LessQ[a_, b_] := Not[OrderedQ[{b, a}]]
 
 (* Flatten, join, and convert the arguments to a string. *)
@@ -58,19 +61,31 @@ CaseUnion[pat_] := CaseUnion[#, pat]&
 
 (* A safe way to apply replacement rules to a list of items: map a
  * list, replacing each item (non-recursively) with given rules;
- * fail if one of the items matches no replacement pattern. *)
-MapReplace[rules__] := Map[Replace[{rules, x_ :> Error["Failed to replace: ", x, ", with rules: ", {rules}[[;;,1]]]}]]
+ * fail if one of the items matches no replacement pattern.
+ *
+ * Note: the third form is deprecated, as it is inconsistent
+ * with the plain `Replace[]`.
+ *)
+MapReplace[{rules__}] := Map[Replace[{rules,
+  x_ :> Error["Failed to replace: ", x, ", with rules: ", {rules}[[;;,1]]]}]]
+MapReplace[rule_] := Map[Replace[{rule,
+  x_ :> Error["Failed to replace: ", x, ", with rule: ", rule[[1]]]}]]
+MapReplace[rules__] := Map[Replace[{rules,
+  x_ :> Error["Failed to replace: ", x, ", with rules: ", {rules}[[;;,1]]]}]]
 
+(* Same as `Replace`, but fail if no replacement was made. *)
 ReallyReplace[{rules__}] := Replace[{rules, x_ :> Error["Failed to replace: ", x]}]
 ReallyReplace[rule_] := Replace[{rule, x_ :> Error["Failed to replace: ", x]}]
+ReallyReplace[ex_, rule_] := ex // ReallyReplace[rule]
 
 (* Get the first and the only element in a list, fail if the
  * list is not a single element list. *)
 Only[{el_}] := el
 Only[l_] := Error["Only: a list of exactly one element expected, got: ", l]
 
-(* Get the second element in a list, fail if the
- * list is shorter than 2. *)
+(* Get the second element in a list, fail if the list doesn't
+ * have at least 2 elements.
+ *)
 Second[{_, el_, ___}] := el
 Second[l_] := Error["Second: a list of at least 2 elements expected, got: ", l]
 
@@ -101,15 +116,19 @@ MapSeries[f_, Verbatim[SeriesData][x_, x0_, l_List, n1_, n2_, d_]] := SeriesData
 MapSeries[f_] := MapSeries[f, #]&
 MapSeries[f_, l_List] := Map[MapSeries[f], l]
 
+(* Return the lowest power of a series expression. *)
 SeriesLowestPower[l_List] := Map[SeriesLowestPower, l]
 SeriesLowestPower[Verbatim[SeriesData][x_, x0_, l_List, n1_, n2_, d_]] := n1/d
 
+(* Return the highest power of a series expression. *)
 SeriesHighestPower[l_List] := Map[SeriesHighestPower, l]
 SeriesHighestPower[Verbatim[SeriesData][x_, x0_, l_List, n1_, n2_, d_]] := (n2 - 1)/d
 
+(* Return the number of terms in a series expression. *)
 SeriesTermCount[Verbatim[SeriesData][x_, x0_, l_List, n1_, n2_, d_]] := n2 - n1
 SeriesTermCount[l_List] := Map[SeriesTermCount, l]
 
+(* Truncate the series to the leading term only. *)
 SeriesLeadingTerm[s_SeriesData] := If[s[[3]] === {}, s, s + O[s[[1]]]*s[[1]]^s[[4]]]
 
 (* Return the list of terms in an expression. Zero is considered
@@ -146,7 +165,7 @@ ZeroMatrixQ[mx_List] := mx // Flatten // Union // # === {0}&
 ZeroMatrixQ[_] := False
 
 (* Read and parse a file, return the expression inside. Automatically
- * handle .gz, .bz2, and .mx files. Fail if no such file exists,
+ * handle `.gz`, `.bz2`, and `.mx` files. Fail if no such file exists,
  * or if there is an error reading it. *)
 SafeGet[filename_String] := Module[{result},
   result = If[Not[FileExistsQ[filename]],
@@ -168,7 +187,8 @@ SafeGet[filename_String] := Module[{result},
   result
 ]
 
-SafePut[expr_, filename_String] := Module[{},
+(* Save an expression to a file. Automatically handle `.mx` files. *)
+SafePut[expr_, filename_String] := (
   Which[
     StringMatchQ[filename, ___~~".m"],
       Export[filename, expr],
@@ -177,10 +197,10 @@ SafePut[expr_, filename_String] := Module[{},
     StringMatchQ[filename, ___],
       Put[expr, filename]
   ];
-  If[MatchQ[result, $Failed],
-      Error["Failed to get: ", filename];
+  If[Not[FileExistsQ[filename]],
+      Error["Failed to create: ", filename];
   ];
-]
+);
 
 (* Print the error message and stop the computation. Exit with
  * an error code if running in a script; raise an exception when
@@ -242,7 +262,7 @@ FormatSeconds[amount_] := FormatAmount[amount, {
 }]
 
 (* Extract the list of leaf elements, map them with the given
- * function, and put them back in. Note that mapfn must return
+ * function, and put them back in. Note that `mapfn` must return
  * a list of the same size as its input. *)
 LeafApply[mapfn_, ex_] := Module[{skeleton, items},
   LeafApply$SkeletonizeCounter = 0;
@@ -257,9 +277,9 @@ LeafApply$SkeletonizeCounter = 0;
 LeafApply$Skeletonize[s_SeriesData] := MapAt[LeafApply$Skeletonize, s, {3}]
 LeafApply$Skeletonize[ex_] := (Sow[ex]; LeafApply$SkeletonizeCounter++; LeafApply$SkeletonizePlace[LeafApply$SkeletonizeCounter])
 
-(* Find all parts of ex that match pat, apply mapfn to the list
+(* Find all parts of `ex` that match `pat`, apply `mapfn` to the list
  * of such parts, put its result back into the expression. Note
- * that mapfn must return a list of the same size as its input.
+ * that `mapfn` must return a list of the same size as its input.
  *)
 SubexpressionApply[mapfn_, ex_, pat_] := Module[{counter, elements, exX, p, X},
   counter = 0;
@@ -292,7 +312,8 @@ Example:
     {{3},{1,2,3},{2,3,1},{2},{1,4,3},{4}}//UniqueSupersetMapping
     > { {{1,2,3}, {1,4,3}}, {1,1,1,1,2,2} }
 *)
-UniqueSupersetMapping[sets_List, subsetq_:SubsetQ] := Module[{supersets, idx, IdxOf},
+UniqueSupersetMapping[sets_List, subsetq_:SubsetQ] :=
+Module[{supersets, idx, IdxOf},
   supersets = {};
   IdxOf[set_] := IdxOf[set] = (
     idx = ElementIndex[supersets, subsetq[#, set]&, None];
@@ -303,7 +324,7 @@ UniqueSupersetMapping[sets_List, subsetq_:SubsetQ] := Module[{supersets, idx, Id
       idx
     ]
   );
-  sets // SortBy[Length] // Reverse // MapWithCliProgress[IdxOf];
+  sets // SortBy[Length] // Reverse // MapWithProgress[IdxOf];
   {supersets, sets // Map[IdxOf] }
 ]
 
@@ -368,10 +389,15 @@ PolynomialsLinearlyDependentQ[polynomials_List, vars_List] := Module[{coefrules,
     MatrixRank[coefarray] < Length[coefarray]
 ]
 
+(* Return the sign of the leading term of a polynomial. Which
+ * term is considered "leading" is up to Mathematica term ordering.
+ *)
 LeadingSign[ex_List] := Map[LeadingSign, ex]
 LeadingSign[ex_ /; (FactorTermsList[ex] // First // Negative)] := -1
 LeadingSign[ex_] := 1
 
+(* Return the polynomial with the leading sign changed to positive.
+ *)
 DropLeadingSign[ex_List] := Map[DropLeadingSign, ex]
 DropLeadingSign[ex_ /; (FactorTermsList[ex] // First // Negative)] := -ex
 DropLeadingSign[ex_] := ex
@@ -427,7 +453,7 @@ TimeIt[ex_] := Module[{t, niter = 2},
 ]
 SetAttributes[TimeIt, HoldFirst];
 
-(* Return a random name of a fresh file of the form prefix.XXXX.suffix.
+(* Return a random name of a fresh file of the form prefix.XXXXsuffix.
  * Make sure no file with this name exists.
  *)
 MkTemp[prefix_, suffix_] := Module[{i, fn, alphabet},
@@ -440,7 +466,7 @@ MkTemp[prefix_, suffix_] := Module[{i, fn, alphabet},
 ]
 
 (* Create a new temporary directory, with the name of the form
- * prefix.XXXX.suffix.
+ * prefix.XXXXsuffix.
  *)
 MkTempDirectory[prefix_, suffix_] := Module[{dirname},
   dirname = MkTemp[prefix, suffix];
@@ -459,10 +485,10 @@ EnsureNoDirectory[dirs__] := Module[{dir},
 ]
 
 (* Make sure a directory exists and has no files inside. *)
-EnsureCleanDirectory[dirs__] := Module[{},
+EnsureCleanDirectory[dirs__] := (
   EnsureNoDirectory[dirs];
   EnsureDirectory[dirs];
-]
+);
 
 (* Run a command, fail if the exist status is not zero. *)
 SafeRun[code__] := Module[{retcode},
@@ -471,30 +497,6 @@ SafeRun[code__] := Module[{retcode},
     Error["SafeRun: command failed with code ", retcode];
   ];
 ];
-
-(* Evaluate a given text fragment as Mathematica code in a fresh
- * kernel. Return the result.
- *
- * DEPRECATED: the code is wrapped in a Block[] here, and this
- * was a mistake. Please use RunMathProgram instead.
- *)
-RunMathCode[code___] := Module[{tmpfile, resfile, math, retcode, result},
-  tmpfile = MkTemp["math", ".m"];
-  resfile = tmpfile <> ".result.m";
-  MkFile[tmpfile, "Put[Block[{},\n\n", code, "\n\n], \"", resfile, "\"];\n"];
-  MkString[code]//PR;
-  math = Environment["MATH"] /. $Failed -> "math";
-  retcode = Run[math <> " -script " <> tmpfile];
-  If[retcode =!= 0,
-    Error["RunMathCode: mathematica failed with code ", retcode];
-  ];
-  result = Get[resfile];
-  If[result === $Failed,
-    Error["RunMathCode: the script did not finish"];
-  ];
-  DeleteFile[{tmpfile, resfile}];
-  result
-]
 
 (* Evaluate a given text fragment as Mathematica script in a fresh
  * kernel. Return the value of the `RESULT` variable at the end
@@ -512,53 +514,20 @@ RunMathProgram[code___] := Module[{tmpfile, resfile, math, retcode, result},
   math = Environment["MATH"] /. $Failed -> "math";
   retcode = Run[math <> " -script " <> tmpfile];
   If[retcode =!= 0,
-    Error["RunMathCode: mathematica failed with code ", retcode];
+    Error["RunMathProgram: mathematica failed with code ", retcode];
   ];
   result = Get[resfile];
   If[result === $Failed,
-    Error["RunMathCode: the script did not finish"];
+    Error["RunMathProgram: the script did not finish"];
   ];
   DeleteFile[{tmpfile, resfile}];
   result
 ]
 
-
-(*
- * Progress Indicators
+(* Apply a function to a list of items (same as `Map`), but also
+ * print current progress information and estimated completion time
  *)
-
-$CLI = $FrontEnd === Null;
-
-ProgressBar[x_] := Graphics[{
-        GrayLevel[0.9], Rectangle[{0, 0}],
-        Darker[Brown], Rectangle[{0, 0}, {x, 1}]
-    }, AspectRatio -> Full, ImageSize -> {200, 12}, ImagePadding -> {{0, 0}, {3, 0}}
-]
-
-ProgressBar[x_, y_] := Graphics[{
-        GrayLevel[0.9], Rectangle[{0, 0}],
-        Lighter[Orange], Rectangle[{0, 0}, {y, 1}],
-        Darker[Brown], Rectangle[{0, 0}, {x, 1}]
-    }, AspectRatio -> Full, ImageSize -> {200, 12}, ImagePadding -> {{0, 0}, {3, 0}}
-]
-
-ColorBar[colors_] := Graphics[
-    Table[{colors[[i]], Rectangle[{i, 0}]}, {i, Length[colors]}],
-    AspectRatio -> Full, ImageSize -> {200, 12}, ImagePadding -> {{0, 0}, {3, 0}}
-]
-
-MapWithProgress[f_, lst_] := Module[{r, n = 0, m = Length[lst]},
-    Monitor[
-        Map[(r = f[#]; n++; r) &, lst],
-        Refresh[
-            Row[{ProgressBar[n/m, (n + 1)/m], MkString[" ", n, "/", m]}],
-            TrackedSymbols -> {n}
-        ]
-    ]
-]
-MapWithProgress[f_] := MapWithProgress[f, #] &
-
-MapWithCliProgress[f_, items_List] := Module[{result, t0, tx, t, ndone = 0, ntodo = Length[items], bcounts, bfrac},
+MapWithProgress[f_, items_List] := Module[{result, t0, tx, t, ndone = 0, ntodo = Length[items], bcounts, bfrac},
   t0 = tx = SessionTime[];
   bcounts = items//Map[ByteCount];
   result = Map[(
@@ -577,41 +546,10 @@ MapWithCliProgress[f_, items_List] := Module[{result, t0, tx, t, ndone = 0, ntod
   Print["Map: done ", ntodo, " items in ", t-t0//FormatSeconds];
   result
 ]
-MapWithCliProgress[f_] := MapWithCliProgress[f, #] &
+MapWithProgress[f_] := MapWithProgress[f, #] &
 
-MapAtWithProgress[f_, lst_, lvl_] := Module[{r, n = 0, m = 0},
-  MapAt[(m++;) &, lst, lvl];
-  Monitor[MapAt[(r = f[#]; n++; r) &, lst, lvl],
-   Refresh[
-    Row[{ProgressBar[n/m, (n + 1)/m], MkString[" ", n, "/", m]}],
-    TrackedSymbols -> {n}]]]
-
-MapAtWithProgress[f_, lvl_] := MapAtWithProgress[f, #, lvl] &
-
-ParallelMapWithProgress[f_, lst_] := Module[{res, r, ns = 0, ne = 0, color, m = Length[lst]},
-    SetSharedVariable[ns, ne, color];
-    color = Table[GrayLevel[0.9], m];
-    SetSharedVariable[ns, ne, color];
-    res = Monitor[
-        ParallelMap[(
-            color[[#[[2, 1]]]] = Lighter[Orange];
-            ns++;
-            r = f[#[[1]]];
-            color[[#[[2, 1]]]] = Darker[Brown];
-            ne++;
-            r) &, MapIndexed[List, List @@ lst], Method->"FinestGrained"],
-        Refresh[Row[{ColorBar[color], MkString[" ", ne, "/", ns, "/", m]}], TrackedSymbols -> {ns, ne}]
-    ];
-    UnsetShared[ns, ne, color];
-    res // Apply[Head[lst]]
-]
-ParallelMapWithProgress[f_] := ParallelMapWithProgress[f, #] &
-
-$LastStatusTime = AbsoluteTime[];
-SetSharedVariable[$LastStatusTime];
-Status[msg___] := Module[{t = AbsoluteTime[]}, If[t - $LastStatusTime > 1, $LastStatusTime = t; Print[MkString[msg]]]]
-
-If[$CLI,
+(* Parallel `Map` with progress indicator.
+ *)
 PMap[f_, data_] := Module[{tmpfile, todo, result, r, nitems, nstarted, nended, i},
   {nitems, nstarted, nended} = {Length[data], 0, 0};
   $PARALLELDATA = data;
@@ -635,58 +573,18 @@ PMap[f_, data_] := Module[{tmpfile, todo, result, r, nitems, nstarted, nended, i
   Status["PMap: done, ", result//ByteCount//FormatBytes];
   result
 ]
-  ,
-PMap[f_, data_] := Module[{tmpfile, todo, result, r, nitems, nstarted, nended, colorbar, i},
-  {nitems, nstarted, nended} = {Length[data], 0, 0};
-  colorbar = Table[GrayLevel[0.9], nitems];
-  SetSharedVariable[nstarted, nended, colorbar];
-    $PARALLELDATA = data;
-    PrintTemporary["PMap: distributing data, ", ByteCount[$PARALLELDATA]//FormatBytes];
-    TM[
-   tmpfile = MkTemp["pmap", ".mx"];
-   DumpSave[tmpfile, $PARALLELDATA];
-   ClearAll[$PARALLELDATA];
-   ParallelEvaluate[Get[tmpfile]];
-   DeleteFile[tmpfile];
-    ];
-    (*
-      TM[
-    DistributeDefinitions[$PARALLELDATA];
-    ClearAll[$PARALLELDATA];
-      ];
-    *)
-    PrintTemporary["PMap: distributing definitions"];
-    DistributeDefinitions[f];
-  Monitor[
-   (*tmpfile = MkTemp["pmap", ".mx"];
-   $PARALLELDATA = data;
-   DumpSave[tmpfile, $PARALLELDATA];
-   ClearAll[$PARALLELDATA];
-   ParallelEvaluate[Get[tmpfile]];
-   DeleteFile[tmpfile];*)
-   todo = Table[ParallelSubmit[{i},
-      colorbar[[i]] = Lighter[Orange]; nstarted++;
-      r = f[$PARALLELDATA[[i]]]; colorbar[[i]] = Darker[Brown];
-      nended++; r
-      ], {i, Length[data]}];
-   result = WaitAll[todo];
-   ParallelEvaluate[ClearAll[$PARALLELDATA]];
-   UnsetShared[nstarted, nended, colorbar];
-   ,
-   Refresh[
-    Row[{ColorBar[colorbar],
-      MkString[" ", nended, "/", nstarted, "/", nitems]}],
-    TrackedSymbols -> {nstarted, nended}]
-   ];
-  result
-  ]
-]
-PMap[f_] := PMap[f, #] &
+
+$LastStatusTime = AbsoluteTime[];
+SetSharedVariable[$LastStatusTime];
+Status[msg___] := Module[{t = AbsoluteTime[]}, If[t - $LastStatusTime > 1, $LastStatusTime = t; Print[MkString[msg]]]]
 
 (* ## B Maps
  *
  * B maps are a way to apply many substitution rules for `B[...]`
- * objects, as efficiently as Mathematica allows for.
+ * objects, as efficiently as Mathematica allows for. They are
+ * implemented as a set of substitution rules attached to a symbol,
+ * but can be loaded/saved to the usual format of a list of rules
+ * (i.e. `{B[...] -> ..., ...}`).
  *)
 
 (* Load substitution rules from a file and add them to a B map
@@ -753,6 +651,7 @@ BMapClear[name_Symbol] := Clear[Evaluate[name]]
 BMapApply[name_Symbol, ex_] := ex /. B -> name /. name -> B
 BMapApply[name_Symbol] := BMapApply[name, #] &
 
+(* Append one or several B maps to a given one. *)
 BMapAppendTo[result_Symbol, rest__] := Module[{names = List[rest], keys, name, values},
     keys = Prepend[names, result] // Map[(DownValues[#] // Map[First] // ReplaceAll[# -> B] // Map[ReleaseHold])&] // Apply[Join] // Union;
     values = keys /. B -> result /. result -> First[names];
@@ -762,6 +661,7 @@ BMapAppendTo[result_Symbol, rest__] := Module[{names = List[rest], keys, name, v
     DownValues[Evaluate[result]] = MapThread[RuleDelayed, {keys // Map[HoldPattern] // ReplaceAll[B -> result], values}];
 ]
 
+(* Add one key-value pair to a B map. *)
 BMapAppendOne[name_Symbol, key_B, value_] := Module[{keys, values},
     keys = BMapKeys[name] // Append[#, key]&;
     values = keys /. B -> name /. name -> B /. key -> value;
@@ -769,6 +669,7 @@ BMapAppendOne[name_Symbol, key_B, value_] := Module[{keys, values},
     DownValues[Evaluate[name]] = MapThread[RuleDelayed, {keys // Map[HoldPattern], values}] // ReplaceAll[B -> name];
 ];
 
+(* Map all values of a B map. *)
 BMapMapValues[name_Symbol, fn_] := Module[{keys, values},
     keys = BMapKeys[name];
     values = keys // BMapApply[name] // Map[fn];
@@ -776,6 +677,7 @@ BMapMapValues[name_Symbol, fn_] := Module[{keys, values},
     DownValues[Evaluate[name]] = MapThread[RuleDelayed, {keys // Map[HoldPattern], values}] // ReplaceAll[B -> name];
 ];
 
+(* Map all values of a B map. *)
 BMapMapItems[name_Symbol, fn_] := Module[{keys, values, kv},
     keys = BMapKeys[name];
     values = keys // BMapApply[name];
@@ -784,12 +686,17 @@ BMapMapItems[name_Symbol, fn_] := Module[{keys, values, kv},
     DownValues[Evaluate[name]] = Map[RuleDelayed @@ {HoldPattern[Evaluate[#[[1]]]], #[[2]]}&, kv] // ReplaceAll[B -> name];
 ];
 
+(* List all the unique `B[...]` expressions on the right-hand
+ * side of the B map. *)
 BMapMasters[name_Symbol] := DownValues[Evaluate[name]] /. name -> B // Map[#[[2]]&] // Cases[#, _B, -1]& // Union
 
+(* Get the number of items in a B map. *)
 BMapLength[name_Symbol] := DownValues[Evaluate[name]] // Length
 
+(* Get the list of a B map keys. *)
 BMapKeys[name_Symbol] := DownValues[Evaluate[name]] // Map[First] // ReplaceAll[name -> B] // Map[ReleaseHold]
 
+(* Get the B map as a list of rules. *)
 BMapRules[name_Symbol] := DownValues[Evaluate[name]] /. name -> B /. {RuleDelayed -> Rule, Verbatim[HoldPattern][x_] :> x}
 
 (*
@@ -855,6 +762,8 @@ MapleRun[script_List] := Module[{fullscript, resultfile, proc, result},
     ]
 ]
 
+(* Call a Maple function with the given arguments, return the
+ * result. *)
 MapleF[fun_String, arg1_] := MapleRun[{
         "xxxarg1 := ", arg1 // ToMaple, ":\n",
         "result := ", fun, "(xxxarg1):\n"
@@ -877,6 +786,7 @@ MapleGet[filename_String] := Module[{text},
     FromMaple[text]
 ]
 
+(* Convert a string in the Maple format into a Mathematica expression. *)
 FromMaple[text_String] :=
     text //
     (* Drop the final '\' on a line. *)
@@ -1416,7 +1326,7 @@ MzvToHpl[ex_] := ex /. Mzv[ww__] :> Module[{w, s = 1, os = 1},
     os*Hpl[1, w]
 ]
 
-LoadMzvTable[filename_String] := Module[{},
+LoadMzvTable[filename_String] := (
   If[FileExistsQ[filename <> ".mx"],
       Print["Reading ", filename, ".mx"];
       SafeGet[filename <> ".mx"];
@@ -1427,7 +1337,7 @@ LoadMzvTable[filename_String] := Module[{},
       H1[w__, 0] := Hlog[1, HplMToA[{w, 0}]] // HlogExtractTrail[0] // ReplaceAll[Hlog[1, ww_] :> H1 @@ HplAToM[ww]];
       DumpSave[filename <> ".mx", H1];
   ];
-]
+);
 ReduceMzv[ex_] := ex // ToMzv // MzvToHpl // ReplaceAll[Hpl[1, w_List] :> H1 @@ w] // ReplaceAll[H1[w__] :> Hpl[1, {w}]] // ToMzv
 
 
@@ -1441,7 +1351,7 @@ Hpl2dToHlog[ex_] := ex /. {
 }
 
 (*
- * Graph construction from propagators
+ * ## Graph construction from propagators
  *)
 
 (* FindFundamentalCycles is buggy; it finds different number of
