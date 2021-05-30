@@ -1,9 +1,29 @@
 #!/usr/bin/env python3
 
+# # doc.py
+#
+# This scripts generates annotated, cross-linked, and
+# syntax-highlighted source files (in HTML).
+#
+# The idea is simple: each file is split into a series of
+# top-level comment blocks and source code. Comments are rendered
+# as Markdown, code is syntax-highlighted with [Pygments]. Markdown
+# is extended in two ways:
+#
+# 1. The [[double bracket]] syntax means a link to a header
+#    somewhere in the current or neighboring files.
+#
+# 2. A comment block directly preceeding a function definition
+#    automatically creates a sub-sub-section named after the function.
+#
+# The code hightlight also cross-links function names to their
+# definitions and/or official documentation (for Mathematica).
+#
+# [pygments]: https://pygments.org/
+#
 # Needed packages:
-#   pip3 install mistletoe pygments pygments-mathematica
-
-# Docommentation generator.
+#
+#     pip3 install mistletoe pygments pygments-mathematica
 
 import glob
 import io
@@ -43,7 +63,18 @@ for tok, classname in list(pygments_classmap.items()):
             pygments_classmap[tok] = classname
             todo.extend(tok.subtypes)
 
-# Markdown (i.e. comment) parsing and rendering
+escape_html_map = {
+    ord("'"): '&#39;',
+    ord('"'): '&quot;',
+    ord('&'): '&amp;',
+    ord('<'): '&lt;',
+    ord('>'): '&gt;'
+}
+
+def escape_html(text):
+    return text.translate(escape_html_map)
+
+# ## Markdown (i.e. comment) parsing and rendering
 
 # The way this was supposed to work is that in markdown_headers
 # we would preparse Markdown, figure out the complete section
@@ -112,11 +143,11 @@ class DocRenderer(mistletoe.HTMLRenderer):
                 if tok == pygments.token.Token.Name.Variable and value in self._xref:
                     refurl, hash = self._xref[value]
                     refurl = relurl(refurl, self._url)
-                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
+                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{escape_html(value)}</a>")
                 elif cls is not None:
-                    f.write(f"<span class=\"{cls}\">{value}</span>")
+                    f.write(f"<span class=\"{cls}\">{escape_html(value)}</span>")
                 else:
-                    f.write(value)
+                    f.write(escape_html(value))
             f.write("</pre>\n")
             return f.getvalue()
 
@@ -129,7 +160,7 @@ def markdown_render(text, url, xref, toc):
     with DocRenderer(url, xref, toc) as renderer:
         return renderer.render(mistletoe.Document(text))
 
-# Parsing/formatting: Mathematica
+# ## Parsing/formatting: Mathematica
 
 Token_Doc = 1
 
@@ -262,22 +293,22 @@ def format_mma(f, xref, url, tokens, toc):
                 if value in xref:
                     refurl, hash = xref[value]
                     refurl = relurl(refurl, url)
-                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{value}</a>")
+                    f.write(f"<a class=\"{cls}\" href=\"{refurl}{hash}\">{escape_html(value)}</a>")
                     continue
             if tok == pygments.token.Token.Name.Builtin:
-                f.write(f"<a class=\"{cls}\" href=\"https://reference.wolfram.com/language/ref/{value}.html\" rel=\"nofollow\">{value}</a>")
+                f.write(f"<a class=\"{cls}\" href=\"https://reference.wolfram.com/language/ref/{value}.html\" rel=\"nofollow\">{escape_html(value)}</a>")
                 continue
             if cls is not None:
-                f.write(f"<span class=\"{cls}\">{value}</span>")
+                f.write(f"<span class=\"{cls}\">{escape_html(value)}</span>")
             else:
-                f.write(value)
+                f.write(escape_html(value))
     if lasttok != Token_Doc:
         f.write(f"</pre>\n")
     f.write(HTML_FOOT)
 
 MMA = (preparse_mma, format_mma)
 
-# Parsing/formatting: Markdown
+# ## Parsing/formatting: Markdown
 
 def preparse_md(data, xref, srcfilename, url, toc):
     toc.extend(markdown_headers(data, url, xref))
@@ -291,7 +322,7 @@ def format_md(f, xref, url, data, toc):
 
 MD = (preparse_md, format_md)
 
-# Parsing/formatting: generic format with line comments via #.
+# ## Parsing/formatting: generic format with line comments via #.
 
 def hash_strip_comment(value):
     return "\n".join([
@@ -336,16 +367,16 @@ def format_hash(f, xref, url, tokens, toc):
             lasttok = tok
             cls = pygments_classmap.get(tok, None)
             if cls is not None:
-                f.write(f"<span class=\"{cls}\">{value}</span>")
+                f.write(f"<span class=\"{cls}\">{escape_html(value)}</span>")
             else:
-                f.write(value)
+                f.write(escape_html(value))
     if lasttok != Token_Doc:
         f.write(f"</pre>\n")
     f.write(HTML_FOOT)
 
 HASH = (preparse_hash, format_hash)
 
-# Main
+# ## Main
 
 HTML_HEAD = """\
 <!DOCTYPE html>
@@ -367,25 +398,24 @@ HTML_FOOT = """\
 
 STYLE_CSS = """\
 html { background: white; color: #232627; box-sizing: border-box; }
-html { font-family: "Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
+html { font-family: "Charter Web","Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
 body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
 pre,p,hr { margin-top: 0px; margin-bottom: 18px; }
 a { text-decoration: none; color: #2980b9; }
 a:hover, a:focus { text-decoration: underline; }
-pre, code { font-family: "Fira Mono",monospace; }
+pre, code { font-family: "Fira Mono Web","Fira Mono",monospace; }
 code { font-size: 90%; hyphens: none; }
 pre, pre code { font-size: 14px; }
 .tc { color: #969896; }
 .tl { color: #005cc5; }
-.ts { color: #032f62; }
+.ts { color: #0c9a9a; }
 .tn, .tnv, .tnvc { }
 .tnb { color: #d73a49; }
 .tne { color: red; }
-.tnt { color: #0c9a9a; }
-pre { overflow-x: auto; }
-pre { margin-left: 1em;}
+.tnt { color: #032f62; }
+pre { overflow-x: auto; padding: 0.5em; background: #f8f8f8;}
 pre.doc { margin-left: 1em; border-left: 0.3em solid #f0f0f8; padding-left: 1em; }
 ul ul { text-align: left; }
 ul ul li { display: inline; }
@@ -394,9 +424,11 @@ ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: #111; color: #eee; }
+ pre { background: #222; }
  pre.doc { border-left-color: #433; }
-.ts { color: #234f82; }
+ .tnt { color: #234f82; }
 }
+
 """
 
 FAVICON_SVG = """\
