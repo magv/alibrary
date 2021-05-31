@@ -455,6 +455,10 @@ Module[{DimOf, DimOfSymbol, ex, eqns, solution},
   solution[[1]] /. DimOfSymbol[ex_] :> ex
 ]
 
+(* Normalize the `den[]` expressions by dropping the leading
+ * signs of the momenta. *)
+NormalizeDens[ex_] := ex /. den[p_, x___] :> den[DropLeadingSign[Expand[p]], x] /. den[p_, 0] :> den[p]
+
 (* Complete a list of denominators to a full IBP basis, and
  * return an IBP basis object with all the information. This
  * object is used throughout this library, and this is the main
@@ -465,8 +469,11 @@ Module[{DimOf, DimOfSymbol, ex, eqns, solution},
  *     In[]:= CompleteIBPBasis[1, {den[l1], den[q-l1]}, {l1, l2}, {q}, {sp[q,q]->qq}]
  *     Out[]=
  *     <|
- *      "id" -> 1, "loopmom" -> {l1, l2}, "externalmom" -> {q},
- *      "sprules" -> {sp[q,q] -> qq}, "invariants" -> {qq}, "massdimensions" -> {qq -> 2},
+ *      "id" -> 1,
+ *      "loopmom" -> {l1, l2},
+ *      "externalmom" -> {q},
+ *      "sprules" -> {sp[q,q] -> qq},
+ *      "invariants" -> {qq},
  *      "denominators" -> { den[l1], den[l1-q], den[l2,0,irr], den[l1+l2,0,irr], den[l2+q,0,irr] },
  *      "denmap" -> <| den[l1] -> DEN[1], ... |>,
  *      "nummap" -> <| sp[l1,l1] -> 1/DEN[1], ... |>
@@ -496,7 +503,6 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
     ,
     {c, mx} = {{}, {}};
   ];
-  (*Print["Need ",Length[vars]-Length[mx]," more denominators"];*)
   candidatemoms =
     Subsets[Join[loopmom, extmom], {1, Infinity}] //
     (* Higher counts almost always give more IBP terms; the
@@ -513,7 +519,6 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
     Select[NotFreeQ[L]];
   Complete[dens_, mx_, c_, mini_] := Module[{i},
     If[Length[mx] === Length[vars],
-      (*Print["OK"];*)
       Sow[
         <|
           "id" -> bid,
@@ -544,13 +549,11 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
         numadd = numadd /. (l:M) (k:M) :> Sort[sp[l, k]] /. (l:M)^2 :> sp[l, l] /. sprules;
         {cadd, mxadd} = CoefficientArrays[numadd, vars] // Normal;
         If[MatrixRank[Append[mx, mxadd]] === Length[mx] + 1,
-          (*Print["ADD: ", candidatemoms[[i]]];*)
           Complete[
             Append[dens, den[candidatemoms[[i]], 0, irr]],
             Append[mx, mxadd],
             Append[c, cadd],
             i+1]
-          (*Print["DEL: ", candidatemoms[[i]]];*)
         ]
       ]
     ]
@@ -571,6 +574,9 @@ IBPBasisMapInvariants[basis_, invmap_] :=
     Append["invariants" -> (basis["invariants"] /. invmap // CaseUnion[_Symbol])]
 IBPBasisMapInvariants[bases_List, invmap_] := bases // Map[IBPBasisMapInvariants[#, invmap]&]
 
+(* Return a list of substitutions of the invariants of a basis
+ * corresponding to an external momenta permutation.
+ *)
 InvariantMapUnderMomentaPermutation[basis_, momperm_] :=
 Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
   extmom = basis["externalmom"];
@@ -670,7 +676,7 @@ SymmetryMaps[families_List, loopmom_List] := SymmetryMaps[families, loopmom, {}]
  * given family with indices `{i_1,i_2,...}` is equal to an
  * integral in the family number `fam` with indices `{i_n1,i_n2,...}`.
  *)
-IntegralFamilyEquivalence[densets_List, loopmom_List, sprules_List] := Module[{},
+IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{},
   RunThrough[$Feynson <> " mapping-rules -", {
     densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT,
     loopmom, sprules // Map[Apply[List]]
@@ -692,7 +698,7 @@ IntegralUnion[integrals_List, bases_List] := Module[{bid2basis, densets},
       ]&, {bid2basis[bid]["denominators"], {idx}}]
     ];
   densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
-  IntegralFamilyEquivalence[
+  IntegralFamilyMappingRules[
     densets//PR,
     bases[[1, "loopmom"]],
     bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
@@ -792,7 +798,7 @@ FormCallReplace[rules__] := {rules} // MapReplace[
   }
 ]
 
-(* Form function to convert the current expression into B notation.
+(* FORM function to convert the current expression into B notation.
  * To be used with [[RunThroughForm]]. *)
 FormCallToB[bases_List] := MkString[
     "#procedure toBID\n",
@@ -833,6 +839,7 @@ FormCallToB[bases_List] := MkString[
 (*
  * ## Kira interface for IBP reduction
  *)
+
 (* Kira sorts bases by name instead of adhering to the order
  * of definition. We shall make sure that both the numerical
  * and the lexicographic orders match, which will prevent Kira
@@ -992,6 +999,11 @@ IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
 IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
 IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
 
+(* Figure out a list of topmost sectors containing all the
+ * supplied integrals. Each returned sector is an `Association`
+ * with keys `id`, `idx`, `r`, `s`, and `d`. The integrals are
+ * specified by the lists of their indices.
+ *)
 TopSectors[idxlist_List] :=
 Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r, s, d, sectors, done, i, ss},
   tops = idxlist // Map[IndicesToS] // Max[#, 1]&;
@@ -1041,18 +1053,6 @@ Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r,
           {sector, s2sectors[s]}
       ];
   ];
-  (* We need to make sure each sector has more integrals than
-   * masters, otherwise Kira will have nothing to work with, and
-   * we'll miss masters in the IBP table.
-   *)
-  (*
-  Do[
-      sector2s[sector] = Max[sector2s[sector], 1];
-      sector2d[sector] = Max[sector2d[sector], 1];
-      sector2r[sector] = Max[sector2r[sector], DigitCount[sector, 2, 1]];
-      ,
-      {sector, sectors}];
-  *)
   Print["Final sectors:"];
   Do[
     Print["- ", sector, " ", IntegerDigits[sector, 2, Length[First[idxlist]]]//Reverse, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
@@ -1468,6 +1468,17 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
         "\tmv ", name, "/", name, "_pylink.so $@\n",
         "\trm -rf ", name, "\n",
         "\n",
+        (* This part is tricky: because `$RUN` might send the
+        * command to a cluster, and there is some delay in the
+        * propagation of data across the network filesystem,
+        * we can not allow `*.integrate.py` scripts to directly
+        * read `invariants.txt` or write to `*_value.m` files. So
+        * we supply the parameters as command line arguments,
+        * and expect the results on stdout. Also to make sure
+        * that if the script fails, `*_value.m` file is removed
+        * (or at least marked as outdated), so it would be rebuilt
+        * the next time `make` is executed.
+        *)
         name, "_value.m: ", name, "_pylink.so ", name, ".integrate.py invariants.txt\n",
         "\ttouch -t 199001010000 $@\n",
         "\t${RUN} python3 ", name, ".integrate.py $$(cat invariants.txt) > $@ || rm -f $@\n"
@@ -1479,6 +1490,10 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
 
 (* Compile integration libraries for a list of integrals belonging
  * to a given set of bases in a given directory.
+ *
+ * Note that by design if this function is re-run with the same
+ * (or slightly different) parameters, then no (or very little)
+ * recompilation will take place.
  *)
 SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
   SecDecPrepare[basedir, bases, integrals];
@@ -1493,6 +1508,11 @@ SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
  * Here the same setup as with [[SecDecPrepare]] is used:
  * you can set the `THREADS` and `RUN` environment variables to
  * parallelize the integration.
+ *
+ * As with [[SecDecCompile]] this function can be re-run twice,
+ * and the second time it will return immediately because all
+ * the integration is already saved to disk. Only if the phase-space
+ * point has changed will the new integration be performed.
  *)
 SecDecIntegrate[basedir_String, integrals_List, invariantmap_List, jobs_:1] :=
 Module[{invstring,filenames},
@@ -1673,6 +1693,10 @@ BDiffByInv[basis_, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
     If[ds === 0, 0, ds*BDiffBySP[basis, indices, s]],
     {s, splist}]
 ]
+
+(* Diffferentiate an integral in the `B` notation by a scalar
+ * product of external momenta, or an invariant of the basis.
+ *)
 BDiff[ex_, basis_, s_sp] := ex /. B[basis["id"], idx__] :> BDiffBySP[basis, {idx}, s]
 BDiff[ex_, basis_, inv_Symbol] := ex /. B[basis["id"], idx__] :> BDiffByInv[basis, {idx}, inv]
 BDiff[basis_, inv_Symbol] := BDiff[#, basis, inv]&

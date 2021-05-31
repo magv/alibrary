@@ -958,7 +958,7 @@ AddDenominators[B[bid_, idx__], ibpbasis_List, nadd_] := Module[{isok, freeslots
     Map[B[bid, Sequence @@ ({idx} + #)]&]
 ]
 
-(* Epsilon form solutions
+(* ## Epsilon form solutions
  *)
 
 (* Return a list of expressions, each representing an order of
@@ -1023,8 +1023,6 @@ KnownBasisMap[knownibp:{{(*file*)_String, (*idx*)_Integer, (*exb*)_} ...}, maste
 ]
 
 (*** LIB IBP ***)
-
-NormalizeDens[ex_] := ex /. den[p_, x___] :> den[DropLeadingSign[p], x] /. den[p_, 0] :> den[p]
 
 LoadKiraSectorMappings[nmomenta_Integer, filename_String] :=
 Module[{text, sector1, mommap, jacobian, sector2, bid2},
