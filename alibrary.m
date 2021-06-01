@@ -602,7 +602,7 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
 IBPBasisCross[bid_, basis_, externalmommap_] := Module[{invmap},
   invmap = InvariantMapUnderMomentaPermutation[basis, externalmommap];
   basis //
-    Map[ReplaceAll[invmap]] //
+    Map[ReplaceAll[externalmommap] /* ReplaceAll[invmap]] //
     Append[#, "id" -> bid] & //
     Append[#, "externalmom" -> basis["externalmom"]] & //
     Append[#, "invariants" -> basis["invariants"]] & //
