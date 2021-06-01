@@ -684,10 +684,10 @@ IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{
 ]
 
 (* Take a list of integrals (in the `B` notation) and a list of bases,
- * and return a list of integrals with all symmetric duplicates
- * removed.
+ * and return the indices of unique integrals, discarding the
+ * symmetric duplicates.
  *)
-IntegralUnion[integrals_List, bases_List] := Module[{bid2basis, densets},
+UniqueIntegralIndices[integrals_List, bases_List] := Module[{bid2basis, densets},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   densets = integrals //
     MapReplace[
@@ -699,7 +699,7 @@ IntegralUnion[integrals_List, bases_List] := Module[{bid2basis, densets},
     ];
   densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
   IntegralFamilyMappingRules[
-    densets//PR,
+    densets,
     bases[[1, "loopmom"]],
     bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
   ] //
@@ -707,9 +707,15 @@ IntegralUnion[integrals_List, bases_List] := Module[{bid2basis, densets},
     MapAt[Replace[Except[0] -> 1], #, {;;, 2, ;;}]& //
     PositionIndex //
     Values //
-    Map[First] //
-    integrals[[#]]&
+    Map[First]
 ]
+
+(* Take a list of integrals (in the `B` notation) and a list of bases,
+ * and return a list of integrals with all symmetric duplicates
+ * removed.
+ *)
+IntegralUnion[integrals_List, bases_List] :=
+  integrals[[UniqueIntegralIndices[integrals, bases]]]
 
 (*
  * ## FORM interface for integrand transformation
