@@ -1095,6 +1095,18 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
   MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml", bases // Select[MemberQ[bids, #["id"]]&]];
   MkKiraJobsYaml[dirname <> "/jobs.yaml", bids, bid2topsectors, "all"];
   MkKiraIntegrals[dirname, blist];
+  Run["cp -a kira.sh '" <> dirname <> "/kira.sh'"];
+  MaybeMkFile[dirname <> "/Makefile",
+    "THREADS?= 1\n",
+    "RUN ?=\n",
+    "\n",
+    "done: ",
+      "config/integralfamilies.yaml ",
+      "config/kinematics.yaml ",
+      Table[{KiraBasisName[bid], ".integrals "}, {bid, bids}],
+      "jobs.yaml\n",
+    "\t${RUN} ./kira.sh ./jobs.yaml --parallel=${THREADS}\n"
+  ];
 ]
 
 (* Populate a directory with Kira subdirectories for each basis, and
@@ -1381,7 +1393,8 @@ SecDecIntegralName[DimShift[integral_B, n_]] :=
  * machine, if it has 99 processors and lots of free memory.
  *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
-Module[{name, basisid, indices, basis, integral, p, m, dim, order},
+Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order},
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   EnsureDirectory[basedir];
   Do[
     {name, integral, dim, order} = integral // Replace[{
@@ -1393,7 +1406,7 @@ Module[{name, basisid, indices, basis, integral, p, m, dim, order},
     Print["* Making ", basedir, "/", name, ".*"];
     basisid = integral[[1]];
     indices = integral[[2;;]] // Apply[List];
-    basis = bases[[basisid]];
+    basis = bid2basis[basisid];
     MaybeMkFile[basedir <> "/" <> name <> ".generate.py",
       "#!/usr/bin/env python3\n",
       "import pySecDec as psd\n",
