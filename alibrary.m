@@ -684,10 +684,10 @@ IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{
 ]
 
 (* Take a list of integrals (in the `B` notation) and a list of bases,
- * and return the indices of unique integrals, discarding the
- * symmetric duplicates.
+ * determine which integrals are equal, and return a list of index sets,
+ * with each integral in a set being equal to each other.
  *)
-UniqueIntegralIndices[integrals_List, bases_List] := Module[{bid2basis, densets},
+IntegralEqualitySets[integrals_List, bases_List] := Module[{bid2basis, densets},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   densets = integrals //
     MapReplace[
@@ -706,9 +706,15 @@ UniqueIntegralIndices[integrals_List, bases_List] := Module[{bid2basis, densets}
     MapIndexed[Replace[#1, {} -> {First[#2], densets[[First[#2]]] // Length // Range}]&]//
     MapAt[Replace[Except[0] -> 1], #, {;;, 2, ;;}]& //
     PositionIndex //
-    Values //
-    Map[First]
+    Values
 ]
+
+(* Take a list of integrals (in the `B` notation) and a list of bases,
+ * and return the indices of unique integrals, discarding the
+ * symmetric duplicates.
+ *)
+UniqueIntegralIndices[integrals_List, bases_List] :=
+  IntegralEqualitySets[integrals, bases] // Map[Sort] // Map[First]
 
 (* Take a list of integrals (in the `B` notation) and a list of bases,
  * and return a list of integrals with all symmetric duplicates
@@ -1666,7 +1672,6 @@ BasisInvGramMatrixMap[basis_] := BasisInvGramMatrixMap[basis] = Module[{igm, emo
     {i, Length[emom]}
   ] // Association
 ]
-
 
 ClearAll[BDiffByMomentum, BDiffByMass, BDiffBySP, BDiffByInv, BDiff];
 BDiffByMomentum[basis_, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, ddens},
