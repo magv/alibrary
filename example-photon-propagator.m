@@ -131,7 +131,7 @@ Print["Total integral families: ", denominatorsupersets//Length];
 
 bases = denominatorsupersets //
   MapIndexed[CompleteIBPBasis[
-    First[#2], #1, loopmomenta, externalmomenta, {sp[q,q]->sqrq}
+    First[#2], #1 // NormalizeDens // Sort, loopmomenta, externalmomenta, {sp[q,q]->sqrq}
   ]&];
 
 (* OK, now that we have the IBP bases, we can convert the
