@@ -464,6 +464,9 @@ NormalizeDens[ex_] := ex /. den[p_, x___] :> den[DropLeadingSign[Expand[p]], x] 
  * object is used throughout this library, and this is the main
  * way to create it.
  *
+ * You are advised to [[NormalizeDens]] the denominators and
+ * sort them before calling this function.
+ *
  * Example:
  *
  *     In[]:= CompleteIBPBasis[1, {den[l1], den[q-l1]}, {l1, l2}, {q}, {sp[q,q]->qq}]
@@ -483,7 +486,7 @@ CompleteIBPBasis[bid_, denominators_List, loopmom_List, extmom_List, sprules_Lis
 Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxadd, dens, Complete, rels},
   L = loopmom // Map[DropLeadingSign] // Apply[Alternatives];
   M = Join[loopmom, extmom] // Map[DropLeadingSign] // Apply[Alternatives];
-  dens = denominators // NormalizeDens // Sort;
+  dens = denominators // NormalizeDens;
   nums = dens /. den[p_] :> p^2 /. den[p_, m2_, ___] :> p^2 - m2 // Expand;
   nums = nums /. (l:M) (k:M) :> Sort[sp[l, k]] /. (l:M)^2 :> sp[l, l] /. sprules;
   vars = Tuples[{loopmom, Join[loopmom, extmom]}] //
@@ -598,16 +601,11 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
     DeleteCases[x_ -> x_]
 ]
 
-(* Return a copy of the basis, but with permuted external momenta. *)
-IBPBasisCross[bid_, basis_, externalmommap_] := Module[{invmap},
-  invmap = InvariantMapUnderMomentaPermutation[basis, externalmommap];
-  basis //
-    Map[ReplaceAll[externalmommap] /* ReplaceAll[invmap]] //
-    Append[#, "id" -> bid] & //
-    Append[#, "externalmom" -> basis["externalmom"]] & //
-    Append[#, "invariants" -> basis["invariants"]] & //
-    Append[#, "nummap" -> (#["nummap"] // Map[Bracket[#, _DEN, Factor]&])] &
-]
+(* Return a copy of the basis, but with external momenta swapped
+ * inside the denominator list. No change otherwise, i.e. the
+ * external scalar product rules remain the same. *)
+IBPBasisCross[bid_, basis_, externalmommap_] :=
+  CompleteIBPBasis[bid, basis["denominators"] /. externalmommap, basis["loopmom"], basis["externalmom"], basis["sprules"]]
 
 (* Check if two bases are identical, up to the order of keys.
  *)

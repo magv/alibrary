@@ -50,13 +50,17 @@ Module[{basis, cbasis1, cbasis2},
     {k1, k2, k3},
     {sp[k1,k2]->sp12, sp[k1,k3]->sp13, sp[k2,k3]->sp23, sp[k1,k1]->0, sp[k2,k2]->0, sp[k3,k3]->0}
   ];
-  FailUnless[SameQ[
-    Sort[InvariantMapUnderMomentaPermutation[basis, {k1->k2,k2->k1}]],
-    Sort[{sp13->sp23, sp23->sp13}]
-  ]];
-  cbasis1 = IBPBasisCross[2, basis, {k1->k2,k2->k1}];
-  cbasis2 = IBPBasisCross[1, cbasis1, {k1->k2,k2->k1}];
-  FailUnless[ Not[IBPBasisSameQ[basis, cbasis1]] ];
-  FailUnless[ IBPBasisSameQ[basis, cbasis2] ];
+  FailUnless[(basis["denominators"] /. basis["denmap"]) === Table[DEN[i], {i, 4}]];
+  FailUnless[ToB[sp[k1,k2], basis] === sp12 B[1,0,0,0,0]];
+  FailUnless[ToB[sp[k1,k3], basis] === sp13 B[1,0,0,0,0]];
+  cbasis1 = IBPBasisCross[1, basis, {k1->k2, k2->k1}];
+  FailUnless[cbasis1["denominators"] === {den[l], den[l+k2], den[l+k1], den[l+k3]}];
+  FailUnless[ToB[sp[k1,k2], cbasis1] === sp12 B[1,0,0,0,0]];
+  FailUnless[ToB[sp[k1,k3], cbasis1] === sp13 B[1,0,0,0,0]];
+  FailUnless[(cbasis1["denominators"] /. cbasis1["denmap"]) === Table[DEN[i], {i, 4}]];
+  cbasis2 = IBPBasisCross[1, cbasis1, {k1->k2, k2->k1}];
+  FailUnless[(cbasis2["denominators"] /. cbasis2["denmap"]) === Table[DEN[i], {i, 4}]];
+  FailUnless[Not[IBPBasisSameQ[basis, cbasis1]]];
+  FailUnless[IBPBasisSameQ[basis, cbasis2]];
 ]
 
