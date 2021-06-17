@@ -50,6 +50,13 @@ MaybeMkFile[filename_, items__] := Module[{fd, oldtext, newtext},
 Highlight[pat_] := ReplaceAll[e : pat :> Style[e, Red, Bold]]
 Highlight[pat_, style__] := ReplaceAll[e : pat :> Style[e, style]]
 
+(* Just like `MapIndexed`, but the index is `i` rather than
+ * `{i}`. Does not support `levelspec` for this reason; level
+ * 1 is always assumed.
+ *)
+MapIndexed1[f_, expr_] := MapIndexed[f[#1, #2//First]&, expr]
+MapIndexed1[f_] := MapIndexed1[f, #]&
+
 (* Print a list, each element on its own line with an index. *)
 PrintIndexed[ex_List] := (ex // MapIndexed[Print[#2//First, ") ", #1]&]; ex)
 PrintIndexed[ex_] := (Print["?) ", ex]; ex)
