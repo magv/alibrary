@@ -535,6 +535,11 @@ EnsureCleanDirectory[dirs__] := (
   EnsureDirectory[dirs];
 );
 
+(* Make sure a file doesn’t exist. Remove it if it does. *)
+EnsureNoFile[files__] := Module[{file},
+  Do[Quiet[DeleteFile[file], {DeleteFile::fdnfnd}];, {file, {files}}];
+]
+
 (* Run a command, fail if the exist status is not zero. *)
 SafeRun[code__] := Module[{retcode},
   retcode = Run[MkString[code]];
