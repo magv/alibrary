@@ -268,6 +268,44 @@ FormatSeconds[amount_] := FormatAmount[amount, {
   {"y", 365*24*3600}
 }]
 
+(* Convert a structured expression to a string, and make it
+ * pretty.
+ *)
+Pretty[ex_] := MkString[Pretty[ex, "", ""]]
+Pretty[ex:{(_Integer|_Symbol) ...}, indent1_, indent2_] := {
+  indent1, "{",
+  ex //
+    MapIndexed1[Pretty[#1, "", indent2 <> " "]&] //
+    Riffle[#, ", "]&,
+  "}"
+}
+Pretty[ex_List, indent1_, indent2_] := {
+  indent1, "{",
+  ex //
+    MapIndexed1[Pretty[#1, If[#2 === 1, "", indent2 <> " "], indent2 <> " "]&] //
+    Riffle[#, ",\n"]&,
+  "}"
+}
+Pretty[ex_Association, indent1_, indent2_] := {
+  indent1, "<|",
+  ex //
+    Normal //
+    MapIndexed1[Pretty[#1, If[#2 === 1, "", indent2 <> "  "], indent2 <> "  "]&] //
+    Riffle[#, ",\n"]&,
+  "|>"
+}
+Pretty[a_ -> b:Except[_List|_Association], indent1_, indent2_] := {
+  Pretty[a, indent1, indent2],
+  " -> ",
+  Pretty[b, "", indent2 <> "  "]
+}
+Pretty[a_ -> b_, indent1_, indent2_] := {
+  Pretty[a, indent1, indent2],
+  " ->\n",
+  Pretty[b, indent2 <> "  ", indent2 <> "  "]
+}
+Pretty[ex_, indent1_, indent2_] := { indent1, ex // InputForm }
+
 (* Extract the list of leaf elements, map them with the given
  * function, and put them back in. Note that `mapfn` must return
  * a list of the same size as its input. *)
