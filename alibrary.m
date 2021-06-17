@@ -622,7 +622,7 @@ If[Not[MatchQ[$Feynson, _String]], $Feynson = "./feynson -q -j4"; ];
  * each element being `B[basis-id, (1|0), ...]`, listing the topmost
  * zero sectors.
  *)
-ZeroSectors[basis_] :=
+ZeroSectors[basis_Association] :=
   RunThrough[$Feynson <> " zero-sectors -sj3 -", {
       basis["denominators"] /.
         den[p_] :> p^2 /.
@@ -638,7 +638,7 @@ ZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
 (* Return a pattern that matches zero intergals (in the `B`
  * notation) of a given basis.
  *)
-ZeroSectorPattern[basis_] := ZeroSectors[basis] //
+ZeroSectorPattern[basis_Association] := ZeroSectors[basis] //
   MapReplace[B[bid_, idx__] :> B[bid, {idx} /. 1 -> _ /. 0 -> _?NonPositive // Apply[Sequence]]] //
   Apply[Alternatives]
 ZeroSectorPattern[bases_List] := bases // Map[ZeroSectorPattern] // Apply[Alternatives]
@@ -675,8 +675,12 @@ SymmetryMaps[families_List, loopmom_List] := SymmetryMaps[families, loopmom, {}]
  * integral in the family number `fam` with indices `{i_n1,i_n2,...}`.
  *)
 IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{},
-  RunThrough[$Feynson <> " mapping-rules -", {
-    densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT,
+  RunThrough[$Feynson <> " -d mapping-rules -", {
+    densets /.
+      den[p_] :> p^2 /.
+      den[p_, m_] :> p^2-m /.
+      den[p_, m_, irr] :> p^2-m /.
+      den[p_, m_, cut] :> p^2-m-CUT,
     loopmom, sprules // Map[Apply[List]]
   }]
 ]
@@ -692,7 +696,9 @@ IntegralEqualitySets[integrals_List, bases_List] := Module[{bid2basis, densets},
       B[bid_, idx___] :> MapThread[Which[
         #2 === 0, Nothing,
         #2 === 1, #1,
-        True, #1 - MkExpression["POW", #2]
+        #2 > 0, #1 - MkExpression["POW", #2],
+        #2 < 0, #1 - MkExpression["POWm", -#2],
+        True, Error["Unrecognized index:", #2]
       ]&, {bid2basis[bid]["denominators"], {idx}}]
     ];
   densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
@@ -720,6 +726,69 @@ UniqueIntegralIndices[integrals_List, bases_List] :=
  *)
 IntegralUnion[integrals_List, bases_List] :=
   integrals[[UniqueIntegralIndices[integrals, bases]]]
+
+(* Try to map the given integrals onto their symmetric equivalents
+ * in the given sectors. Return a map from the given integrals
+ * to integrals in the specified sectors.
+ *
+ * Negative indices are not supported here.
+ *)
+IntegralMapOntoSectors[sectors_List, integrals_List, bases_List] :=
+Module[{bid2basis, fullfamidx, n, shortfams, intdensets, intidx, idx, bid},
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
+  fullfamidx = sectors // MapReplace[
+    B[bid_, idx__] :> (n=0; {idx} // Map[If[#===0,0,n+=1;n]&])
+  ];
+  shortfams = sectors // MapReplace[
+    B[bid_, idx__] :> (MapThread[If[#1===0,Nothing,#2]&, {{idx}, bid2basis[bid]["denominators"]}])
+  ];
+  {intdensets, intidx} = integrals // MapReplace[
+      B[bid_, idx__] :> {
+        MapThread[If[#===0, Nothing, #2]&, {{idx}, bid2basis[bid]["denominators"]}],
+        {idx} // DeleteCases[0]
+      }
+    ] //
+    Transpose;
+  IntegralFamilyMappingRules[
+    Join[shortfams, intdensets] /.
+      den[p_] :> p^2 /.
+      den[p_, m_] :> p^2-m /.
+      den[p_, m_, irr] :> p^2-m /.
+      den[p_, m_, cut] :> p^2-m-CUT,
+    bases[[1, "loopmom"]],
+    bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
+  ][[Length[sectors]+1;;]] //
+    MapIndexed1[Function[{rule, i},
+      If[And[rule =!= {}, rule[[1]] <= Length[sectors]],
+        idx = rule[[2]];
+        bid = sectors[[rule[[1]], 1]];
+        integrals[[i]] -> B[bid, intidx[[i]] //
+          Prepend[0] //
+          #[[idx + 1]]& //
+          Prepend[0] //
+          #[[fullfamidx[[rule[[1]]]] + 1]]& //
+          Apply[Sequence]
+        ]
+        ,
+        Nothing
+      ]
+    ]]
+]
+
+IntegralMapOntoSector[sector_B, integrals_List, bases_List] :=
+  IntegralMapOntoSectors[{sector}, integrals, bases]
+
+(* Try to map the given integrals onto a given basis using
+ * symmetries. Return a map from the given integrals to integrals
+ * of the given basis.
+ *
+ * Negative indices are not supported here.
+ *)
+IntegralMapOntoFamily[basis_Association, integrals_List, bases_List] :=
+  MapIntegralsOntoSectors[
+    B[basis["bid"], basis["denominators"] // MapReplace[{den[__,irr]->0, _den->1}]],
+    integrals,
+    bases]
 
 (*
  * ## FORM interface for integrand transformation
@@ -1008,6 +1077,14 @@ IndicesToR[idx_List] := idx // Cases[n_ /; n > 0 :> n] // Apply[Plus]
 IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
 IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
 IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
+
+BToSector[B[bid_, idx___]] :=
+  B[bid, {idx} // MapReplace[{ n_ /; n <= 0 -> 0, _ -> 1}] // Apply[Sequence]]
+
+BToSectorPattern[B[bid_, idx___]] :=
+  B[bid, {idx} // MapReplace[{ n_ /; n <= 0 -> _?NonPositive, _ -> _?Positive}] // Apply[Sequence]]
+
+BToSectorPattern[bs_List] := bs // Map[BToSectorPattern] // Apply[Alternatives]
 
 (* Figure out a list of topmost sectors containing all the
  * supplied integrals. Each returned sector is an `Association`
