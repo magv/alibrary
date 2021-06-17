@@ -570,7 +570,7 @@ Module[{L, M, p, k, nums, vars, c, mx, candidatemoms, denadd, numadd, cadd, mxad
 
 (* Apply a replacement map to the invariants of a basis.
  *)
-IBPBasisMapInvariants[basis_, invmap_] :=
+IBPBasisMapInvariants[basis_Association, invmap_] :=
   basis //
     Append["denominators" -> (basis["denominators"] /. invmap)] //
     Append["sprules" -> (basis["sprules"] /. invmap)] //
@@ -580,7 +580,7 @@ IBPBasisMapInvariants[bases_List, invmap_] := bases // Map[IBPBasisMapInvariants
 (* Return a list of substitutions of the invariants of a basis
  * corresponding to an external momenta permutation.
  *)
-InvariantMapUnderMomentaPermutation[basis_, momperm_] :=
+InvariantMapUnderMomentaPermutation[basis_Association, momperm_] :=
 Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
   extmom = basis["externalmom"];
   sprules = basis["sprules"];
@@ -604,8 +604,11 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
 (* Return a copy of the basis, but with external momenta swapped
  * inside the denominator list. No change otherwise, i.e. the
  * external scalar product rules remain the same. *)
-IBPBasisCross[bid_, basis_, externalmommap_] :=
-  CompleteIBPBasis[bid, basis["denominators"] /. externalmommap, basis["loopmom"], basis["externalmom"], basis["sprules"]]
+IBPBasisCross[bid_, basis_Association, externalmommap_] :=
+  Append[
+    CompleteIBPBasis[bid, basis["denominators"] /. externalmommap, basis["loopmom"], basis["externalmom"], basis["sprules"]],
+    "invariants" -> basis["invariants"]
+  ]
 
 (* Check if two bases are identical, up to the order of keys.
  *)
@@ -981,7 +984,8 @@ Module[{loopmom, extmom, dens, basis},
 
 (* Create Kira’s jobs file.
  *)
-MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, sector, r, s}, 
+MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_] :=
+Module[{bid, sector, r, s}, 
   MaybeMkFile[filename,
     "jobs:\n",
     " - reduce_sectors:\n",
@@ -1010,13 +1014,14 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
         {bid, bids},
         {sector, topsectors[bid]}],
     "    integral_ordering: 8\n",
-    "#    preferred_masters: \"preferred-masters\"\n",
+    "    preferred_masters: \"preferred-masters\"\n",
     Switch[mode,
-      "all", {
+      "reduce", {
         "    run_symmetries: true\n",
         "    run_initiate: true\n",
-        "    run_triangular: true\n",
-        "    run_back_substitution: true\n",
+        "#    run_triangular: true\n",
+        "#    run_back_substitution: true\n",
+        "    run_firefly: true\n",
         " - kira2math:\n",
         "    target:\n",
         Table[
@@ -1026,31 +1031,54 @@ MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_String] := Module[{bid, s
             {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
             {bid, bids},
             {sector, topsectors[bid]}],
-        "    reconstruct_mass: true\n"
+        "    reconstruct_mass: false\n"
       },
       "prepare", {
         "    run_symmetries: true\n",
         "    run_initiate: true\n",
         "    run_triangular: false\n",
-        "    run_back_substitution: false\n"
+        "    run_back_substitution: false\n",
+        "    run_firefly: false\n"
       },
-      "finish", {
-        "    run_symmetries: false\n",
-        "    run_initiate: false\n",
-        "    run_triangular: true\n",
-        "    run_back_substitution: true\n",
-        " - kira2math:\n",
-        "    target:\n",
-        Table[
-          {"     - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"},
-          {bid, bids}],
-        Table[
-            {"#     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", sector["r"], ", s: ", sector["s"], ", d: ", sector["d"], "}\n"},
-            {bid, bids},
-            {sector, topsectors[bid]}],
-        "    reconstruct_mass: true\n"
+      "prepare-input", {
+        "    run_symmetries: true\n",
+        "    run_initiate: input\n",
+        "    run_triangular: false\n",
+        "    run_back_substitution: false\n",
+        "    run_firefly: false\n"
       }
     ]
+  ];
+]
+
+(* Create Kira’s jobs file for UD system reduction.
+ *)
+MkKiraFinishUDSYaml[filename_, bids_List] :=
+Module[{bid, sector, r, s}, 
+  MaybeMkFile[filename,
+    "jobs:\n",
+    " - reduce_user_defined_system:\n",
+    "    input_system:\n",
+    "      files:\n",
+    Table[{"       - \"input_kira/", KiraBasisName[bid], "\"\n"}, {bid, bids}],
+    "      config: false\n",
+    "      otf: true\n",
+    "    select_integrals:\n",
+    "     select_mandatory_list:\n",
+    Table[{"      - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"}, {bid, bids}],
+    "    integral_ordering: 8\n",
+    "    preferred_masters: \"preferred-masters\"\n",
+    "    run_symmetries: false\n",
+    "    run_initiate: false\n",
+    "    run_triangular: false\n",
+    "    run_back_substitution: false\n",
+    "    run_firefly: true\n",
+    " - kira2math:\n",
+    "    target:\n",
+    Table[
+      {"     - [", KiraBasisName[bid], ", \"", KiraBasisName[bid], ".integrals\"]\n"},
+      {bid, bids}],
+    "    reconstruct_mass: false\n"
   ];
 ]
 
@@ -1151,10 +1179,54 @@ Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r,
     {sector, sectors}]
 ]
 
-(* Create Kira’s configuration directory for reduction of
- * given integrals under given bases.
+(* Return a list of sectors that represent a union of the given
+ * ones. In other words, drop the subsectors.
  *)
-MkKiraConfig[dirname_, bases_List, blist_] :=
+SectorUnion[sectors_List] := Module[{},
+  sectors //
+    Union // 
+    GroupBy[#[[1]]&] //
+    Normal //
+    MapReplace[
+      (bid_ -> seclist_) :> (
+        seclist[[;;, 2;;]] //
+          Map[Apply[List]] //
+          TopSectors //
+          Map[#["idx"]&] //
+          Map[B[bid, Sequence @@ #]&]
+      )
+    ] //
+    Apply[Join]
+]
+
+
+(* Create a list of preferred masters in Kira syntax.
+ * The masters themselves can be both single integrals
+ * in the `B` notation, or linear combinations of them.
+ *)
+MkKiraEquations[filename_String, masters_List] :=
+Module[{COEF},
+  MaybeMkFile[filename,
+    masters //
+      Bracket[#, _B, Factor /* COEF]& //
+      MapReplace[{
+        B[bid_, idx__]*COEF[1] :>
+          {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]\n"},
+        B[bid_, idx__]*COEF[co_] :>
+          {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
+        HoldPattern[Plus[sum__]] :> ({sum} // MapReplace[
+            B[bid_, idx__]*COEF[co_] :>
+              {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"}
+          ])
+      }] //
+        Riffle[#, "\n"]&
+  ]
+]
+
+(* Create Kira’s configuration directory for reduction of
+ * the given integrals under the given bases.
+ *)
+MkKiraConfig[dirname_, bases_List, blist_, OptionsPattern[]] :=
 Module[{bid, bids, bid2topsector, idxlist, massdims},
   EnsureDirectory[dirname];
   EnsureDirectory[dirname <> "/config"];
@@ -1165,30 +1237,68 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
     ,
     {bid, bids}] // Association;
   massdims = {
-      bases[[1, "sprules", ;;, 2]],
-      bases[[;;,"denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
+      bases[[;;, "sprules", ;;, 2]],
+      bases[[;;, "denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
     } //
     Flatten //
     DeleteCases[0] //
     VariableDimensions[#, 2]&;
+  FailUnless[Sort[massdims[[;;,1]]] === Sort[bases[[1, "invariants"]]]];
+  massdims = bases[[1, "invariants"]] // Map[(# -> (# /. massdims))&];
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
     bases[[1,"externalmom"]], bases[[1,"sprules"]], massdims];
-  MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml", bases // Select[MemberQ[bids, #["id"]]&]];
-  MkKiraJobsYaml[dirname <> "/jobs.yaml", bids, bid2topsectors, "all"];
+  MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml",(* bases];*)
+    bases // Select[MemberQ[bids, #["id"]]&]];
+  MkKiraJobsYaml[dirname <> "/reduce.yaml", bids, bid2topsectors, "reduce"];
+  MkKiraJobsYaml[dirname <> "/prepare.yaml", bids, bid2topsectors, "prepare"];
+  MkKiraJobsYaml[dirname <> "/prepare-uds.yaml", bids, bid2topsectors, "prepare-input"];
+  MkKiraFinishUDSYaml[dirname <> "/finish-uds.yaml", bids]
   MkKiraIntegrals[dirname, blist];
-  Run["cp -a kira.sh '" <> dirname <> "/kira.sh'"];
+  MkKiraEquations[dirname <> "/preferred-masters", 
+    OptionValue[PreferredMasters] // Select[NotFreeQ[B[Alternatives @@ bids, ___]]]];
   MaybeMkFile[dirname <> "/Makefile",
     "THREADS?= 1\n",
     "RUN ?=\n",
     "\n",
-    "done: ",
+    "reduce.done: ",
+      "reduce.yaml ",
+      Table[{KiraBasisName[bid], ".integrals "}, {bid, bids}],
       "config/integralfamilies.yaml ",
       "config/kinematics.yaml ",
+      "preferred-masters\n",
+    "\t${RUN} tempwrap ",
+      "./ -i 'b*integrals' -i 'pref*' -i '*yaml' ",
+      "./ -o 'results/b*' -o '*.log' ",
+      "-- $${KIRA:-kira} reduce.yaml --parallel=${THREADS}\n",
+    "\tdate >$@\n",
+    "\n",
+    "prepare-uds.done: ",
+      "prepare-uds.yaml ",
       Table[{KiraBasisName[bid], ".integrals "}, {bid, bids}],
-      "jobs.yaml\n",
-    "\t${RUN} ./kira.sh ./jobs.yaml --parallel=${THREADS}\n"
+      "config/integralfamilies.yaml ",
+      "config/kinematics.yaml\n",
+    "\trm -rf input_kira/\n",
+    "\t${RUN} tempwrap ",
+      "./ -i 'b*integrals' -i 'pref*' -i '*yaml' ",
+      "./ -o 'input_kira/*' -o '*.log' ",
+      "-- $${KIRA:-kira} prepare-uds.yaml --parallel=${THREADS}\n",
+    "\tdate >$@\n",
+    "\n",
+    "finish-uds.done: ",
+      "sed-arguments ",
+      "prepare-uds.done ",
+      "finish-uds.yaml ",
+      Table[{KiraBasisName[bid], ".integrals "}, {bid, bids}],
+      "\n",
+    "\t${RUN} tempwrap ",
+      "./ -i 'b*integrals' -i 'input_kira/*' -i 'pref*' -i 'finish-uds.yaml' ",
+      "./ -o 'results/b*' -o '*.log' ",
+      "$$(cat sed-arguments) ",
+      "-- $${KIRA:-kira} finish-uds.yaml --parallel=${THREADS}\n",
+    "\tdate >$@\n"
   ];
 ]
+Options[MkKiraConfig] = {PreferredMasters -> {}};
 
 (* Populate a directory with Kira subdirectories for each basis, and
  * write a Makefile that runs Kira for each of them. With this done,
@@ -1208,15 +1318,19 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
  * between master integrals in different bases, a separate combined
  * IBP run is needed -- this time covering only the master integrals.
  *)
-MkKiraConfigByBasis[dirname_, bases_List, blist_] :=
+MkKiraConfigByBasis[dirname_, bases_List, blist_, OptionsPattern[]] :=
 Module[{bid, bids, bid2basis, name},
   bids = blist // CaseUnion[B[bid_, ___] :> bid];
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   Do[
-    MkKiraConfig[dirname <> "/" <> KiraBasisName[bid], {bid2basis[bid]}, blist // CaseUnion[B[bid,___]]];
+    MkKiraConfig[
+      dirname <> "/" <> KiraBasisName[bid],
+      {bid2basis[bid]},
+      blist // CaseUnion[B[bid,___]],
+      PreferredMasters -> OptionValue[PreferredMasters]
+    ];
     ,
     {bid, bids}];
-  Run["cp -a kira.sh '" <> dirname <> "/kira.sh'"];
   MaybeMkFile[dirname <> "/Makefile",
     "THREADS?= 1\n",
     "RUN ?=\n",
@@ -1224,44 +1338,82 @@ Module[{bid, bids, bid2basis, name},
       name = KiraBasisName[bid];
       {
         "\n",
-        "all: ", name, "/done\n",
-        name, "/done: ",
+        "reduce: ", name, "/reduce.done\n",
+        "\n",
+        name, "/reduce.done: ",
+          name, "/reduce.yaml ",
           name, "/config/integralfamilies.yaml ",
           name, "/config/kinematics.yaml ",
-          name, "/", name, ".integrals ",
-          name, "/jobs.yaml\n",
-        "\t${RUN} ./kira.sh ", name, "/jobs.yaml --parallel=${THREADS}\n"
+          name, "/preferred-masters ",
+          name, "/", name, ".integrals\n",
+        "\t${RUN} tempwrap ",
+          name, "/ -i 'b*integrals' -i 'pref*' -i '*yaml' ",
+          name, "/ -o 'results/b*' -o '*.log' ",
+          "-- $${KIRA:-kira} reduce.yaml --parallel=${THREADS}\n",
+        "\tdate >$@\n",
+        "\n",
+        "prepare-uds: ", name, "/prepare-uds.done\n",
+        "\n",
+        name, "/prepare-uds.done: ",
+          name, "/prepare-uds.yaml ",
+          name, "/config/integralfamilies.yaml ",
+          name, "/config/kinematics.yaml ",
+          name, "/preferred-masters ",
+          name, "/", name, ".integrals\n",
+        "\trm -rf input_kira/\n",
+        "\t${RUN} tempwrap ",
+          name, "/ -i 'b*integrals' -i 'pref*' -i '*yaml' ",
+          name, "/ -o 'input_kira/*' -o '*.log' ",
+          "-- $${KIRA:-kira} prepare-uds.yaml --parallel=${THREADS}\n",
+        "\tdate >$@\n",
+        "\n",
+        "finish-uds: ", name, "/finish-uds.done\n",
+        "\n",
+        name, "/finish-uds.done: ",
+          "sed-arguments ",
+          name, "/prepare-uds.done ",
+          name, "/finish-uds.yaml ",
+          name, "/preferred-masters ",
+          name, "/", name, ".integrals\n",
+        "\t${RUN} tempwrap ",
+          name, "/ -i 'b*integrals' -i 'input_kira/*' -i 'pref*' -i 'finish-uds.yaml' ",
+          name, "/ -o 'results/b*' -o '*.log' ",
+          "$$(cat sed-arguments) ",
+          "-- $${KIRA:-kira} finish-uds.yaml --parallel=${THREADS}\n",
+        "\tdate >$@\n"
       },
       {bid, bids}]
   ];
 ]
+Options[MkKiraConfigByBasis] = {PreferredMasters -> {}};
 
 (* Read the IBP tables from a Kira directory, apply them to a
  * given expression.
  *)
 KiraApplyResults[ex_, confdir_String, bases_List] :=
-Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
-  bids = ex // CaseUnion[B[bid_, __] :> bid];
-  bvarmap = Table[
-    bvar = KiraBasisName[bid] // ToExpression;
-    (bvar[idx__] :> B[$BID, idx]) /. $BID -> bid
-    ,
-    {bid, bases[[;;,"id"]]}
-  ];
+Module[{exx, idx, bids, bid, ibpmapfiles, bvar, table, bmap},
+  exx = ex;
+  bids = exx // CaseUnion[B[bid_, __] :> bid];
   Do[
     ibpmapfiles = MkString[confdir, "/results/", KiraBasisName[bid], "/kira_", KiraBasisName[bid], ".integrals.m"] // FileNames;
     If[ibpmapfiles === {}, Continue[]];
     Print["* Loading IBP tables for basis ", bid];
     FailUnless[Length[ibpmapfiles] === 1];
-    table = ibpmapfiles // First // SafeGet;
-    table = table /. bvarmap // TM;
-    BMapLoad[bmap, table] // TM;
+    table = LoadKiraMap[First[ibpmapfiles]] // Association // TM;
+    (*BMapLoadFromKira[bmap, First[ibpmapfiles]];
+    (*table = RunThrough["sed 's/b0*\\([0-9]*\\)\\[/B[\\1,/g' '" <> First[ibpmapfiles] <> "'", ""] // TM;
+    BMapLoad[bmap, table] // TM;*)
     Print["Masters: "];
     BMapMasters[bmap] // Map[Print["- ", #]&];
+    *)
     Print["* Applying the IBP tables for basis ", bid];
+    (*
     table = {};
-    exx = exx // BMapApply[bmap];
+    exx = exx // BMapApply[bmap] // TM;
     BMapClear[bmap];
+    *)
+    exx = exx /. table // TM;
+    table = None;
     ,
     {bid, bids}
   ];
@@ -1269,10 +1421,45 @@ Module[{exx = ex, bids, bvarmap, bid, ibpmapfiles, bvar, table, bmap},
 ]
 KiraApplyResults[confdir_String, bases_List] := KiraApplyResults[#, confdir, bases]&
 
+(* Read the IBP tables from a Kira directory, apply them to a
+ * given expression.
+ *)
+KiraApplyResultsInBulk[ex_, confdir_String, bases_List] :=
+Module[{exx, idx, bids, bid, ibpmapfiles, bvar, table, bmap},
+  exx = ex;
+  bids = exx // CaseUnion[B[bid_, __] :> bid];
+  Do[
+    ibpmapfiles = MkString[confdir, "/results/", KiraBasisName[bid], "/kira_", KiraBasisName[bid], ".integrals.m"] // FileNames;
+    If[ibpmapfiles === {}, Continue[]];
+    Print["* Loading IBP tables for basis ", bid];
+    FailUnless[Length[ibpmapfiles] === 1];
+    table = LoadKiraMap[First[ibpmapfiles]] // TM;
+    BMapLoad[bmap, table] // TM;
+    table = None;
+    ,
+    {bid, bids}
+  ];
+  Print["* Applying the IBP tables"];
+  exx = ex // BMapApply[bmap];
+  BMapClear[bmap];
+  exx
+]
+KiraApplyResultsInBulk[confdir_String, bases_List] := KiraApplyResultsInBulk[#, confdir, bases]&
+
+(* Load an IBP map from a Kira output file.
+ *)
+LoadKiraMap[filename_] := Module[{table},
+  FailUnless[FileExistsQ[filename]];
+  table = RunThrough["sed 's/b0*\\([0-9]*\\)\\[/B[\\1,/g' '" <> filename <> "'", ""];
+  FailUnless[MatchQ[table, _List]];
+  table
+]
+LoadKiraMap[filenames_List] := filenames // Map[LoadKiraMap] // Apply[Join]
+
 (* Extract the list of master integrals from Kira results.
  *)
 KiraMasterIntegrals[confdir_String] :=
-  FileNames[confdir <> "/results/b*/masters.final"] //
+  FileNames[confdir <> "/results/b*/masters"] //
   Map[
     ReadString /*
     (StringSplit[#, "\n"]&) /*
@@ -1296,7 +1483,7 @@ KiraMasterIntegrals[confdir_String] :=
 KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
   confdir = MkTempDirectory["kira", ""];
   MkKiraConfig[confdir, bases, ex // CaseUnion[_B]];
-  If[Run[MkString["cd '", confdir, "' && kira --parallel=4 jobs.yaml"]] // TM // # =!= 0&,
+  If[Run[MkString["make -C '", confdir, "'"]] // TM // # =!= 0&,
     EnsureNoDirectory[confdir];
     Error["Failed to run kira in " <> confdir];
   ];
@@ -1316,8 +1503,8 @@ LeadingIrr[denominators_] := denominators /. {lead:Longest[den[_, _, irr] ...], 
 (* Use FIRE and LiteRed to prepare the basis definition and
  * symmetry files that FIRE will need for the reduction.
  *)
-PrepareFireStart[basis_, confdir_String] := PrepareFireStart[basis, confdir, {}]
-PrepareFireStart[basis_, confdir_String, invariantrules_] :=
+PrepareFireStart[basis_Association, confdir_String] := PrepareFireStart[basis, confdir, {}]
+PrepareFireStart[basis_Association, confdir_String, invariantrules_] :=
 Module[{tmpdir, props},
   Print["* Preparing FIRE basis ", basis["id"]];
   FIREPATH = Environment["FIREPATH"];
@@ -1652,8 +1839,12 @@ ExpandSP[ex_] := ex /. s_sp :> ExpandSP[s]
  * which is not the physical `d^d l/(2 Pi)^d`. To obtain relations
  * between physically normalized integrals, multiply the result
  * of this function by `(4 Pi)^L`.
+ *
+ * Finally, you might want to cleanup the output of this function
+ * using [[ZeroSectors]], because some of the integrals will come
+ * out to be scaleless.
  *)
-RaisingDRR[ex_, basis_] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
+RaisingDRR[ex_, basis_Association] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
   loopmom = basis["loopmom"];
   mx = Table[
     If[i===j, 1, 1/2]
@@ -1685,7 +1876,7 @@ RaisingDRR[ex_, basis_] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx
  * Same normalization issue as in [[RaisingDRR]]; divide by `(4 Pi)^L`
  * to get the relation between physically normalized integrals.
  *)
-LoweringDRR[ex_, basis_] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
+LoweringDRR[ex_, basis_Association] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
   extmom = basis["externalmom"];
   loopmom = basis["loopmom"];
   op = Det[GramMatrix[Join[loopmom, extmom]] /. basis["sprules"]] /.
@@ -1712,11 +1903,11 @@ LoweringDRR[ex_, basis_] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, i
 
 (* All symbols on the right-hand side of scalar product rules.
  * Presumably names of Mandelstam variables and the like. *)
-BasisExternalInvariantSymbols[basis_] := basis[["sprules",;;,2]] // CaseUnion[_Symbol]
+BasisExternalInvariantSymbols[basis_Association] := basis[["sprules",;;,2]] // CaseUnion[_Symbol]
 
 (* All distinct `sp[p1, p2]`, for `p1` and `p2` being external
  * momenta of a basis. *)
-BasisExternalScalarProducts[basis_] := Module[{p1, p2},
+BasisExternalScalarProducts[basis_Association] := Module[{p1, p2},
   splist = Table[
     Sort[sp[p1,p2]],
     {p1, basis["externalmom"]},
@@ -1728,15 +1919,15 @@ BasisExternalScalarProducts[basis_] := Module[{p1, p2},
 GramMatrix[vectors_List] := Module[{p,q}, Table[Sort[sp[p,q]], {p, vectors}, {q, vectors}]]
 
 (* Gram matrix, `|pi * pj|`, for a given basis. *)
-BasisGramMatrix[basis_] := GramMatrix[basis["externalmom"]] /. basis["sprules"] // Together
+BasisGramMatrix[basis_Association] := GramMatrix[basis["externalmom"]] /. basis["sprules"] // Together
 
 (* The inverse of Gram matrix for a given basis. *)
-BasisInvGramMatrix[basis_] := Inverse[BasisGramMatrix[basis]] // Together
+BasisInvGramMatrix[basis_Association] := Inverse[BasisGramMatrix[basis]] // Together
 
 (* The inverse of Gram matrix for a given basis, represented
  * as a nested Association. This is so it could be indexed by
  * momenta as `BasisInvGramMatrixMap[basis][p1,p2]`. *)
-BasisInvGramMatrixMap[basis_] := BasisInvGramMatrixMap[basis] = Module[{igm, emom, i, j},
+BasisInvGramMatrixMap[basis_Association] := BasisInvGramMatrixMap[basis] = Module[{igm, emom, i, j},
   igm = BasisInvGramMatrix[basis];
   emom = basis["externalmom"];
   Table[
@@ -1749,7 +1940,7 @@ BasisInvGramMatrixMap[basis_] := BasisInvGramMatrixMap[basis] = Module[{igm, emo
 ]
 
 ClearAll[BDiffByMomentum, BDiffByMass, BDiffBySP, BDiffByInv, BDiff];
-BDiffByMomentum[basis_, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, ddens},
+BDiffByMomentum[basis_Association, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, ddens},
   dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
   ddens = dens // MapReplace[
     {d:den[mom_, ___], n_} :> -n d^(n+1) 2 Sort[sp[mom, pmul]] D[mom, p]
@@ -1759,7 +1950,7 @@ BDiffByMomentum[basis_, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, dd
     ,
     {k, Length[dens]}]
 ]
-BDiffByMass[basis_, indices_List, mass_Symbol] := Module[{dens, ddens},
+BDiffByMass[basis_Association, indices_List, mass_Symbol] := Module[{dens, ddens},
   dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
   ddens = dens // MapReplace[
     {d:den[mom_], n_} :> -n d^(n+1) D[ExpandSP[sp[mom, mom]], mass]0,
@@ -1770,19 +1961,19 @@ BDiffByMass[basis_, indices_List, mass_Symbol] := Module[{dens, ddens},
     ,
     {k, Length[dens]}]//ToB[basis]
 ]
-BDiffBySP[basis_, indices_List, s:sp[p1_Symbol, p1_Symbol]] := BDiffBySP[basis, indices, s] =
+BDiffBySP[basis_Association, indices_List, s:sp[p1_Symbol, p1_Symbol]] := BDiffBySP[basis, indices, s] =
 Module[{igm, pi},
   Print["BDiff ", basis["id"], indices, p1];
   igm = BasisInvGramMatrixMap[basis];
   1/2 Sum[igm[pi,p1] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
 ]
-BDiffBySP[basis_, indices_List, s:sp[p1_Symbol, p2_Symbol]] := BDiffBySP[basis, indices, s] =
+BDiffBySP[basis_Association, indices_List, s:sp[p1_Symbol, p2_Symbol]] := BDiffBySP[basis, indices, s] =
 Module[{igm, pi},
   Print["BDiff ", basis["id"], indices, p1,p2];
   igm = BasisInvGramMatrixMap[basis];
   Sum[igm[pi,p2] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
 ]
-BDiffByInv[basis_, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
+BDiffByInv[basis_Association, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
   Print["BDiff ", basis["id"], indices, inv];
   FailUnless[Length[basis["denominators"]] === Length[indices]];
   invlist = BasisExternalInvariantSymbols[basis];
@@ -1796,6 +1987,6 @@ BDiffByInv[basis_, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
 (* Diffferentiate an integral in the `B` notation by a scalar
  * product of external momenta, or an invariant of the basis.
  *)
-BDiff[ex_, basis_, s_sp] := ex /. B[basis["id"], idx__] :> BDiffBySP[basis, {idx}, s]
-BDiff[ex_, basis_, inv_Symbol] := ex /. B[basis["id"], idx__] :> BDiffByInv[basis, {idx}, inv]
-BDiff[basis_, inv_Symbol] := BDiff[#, basis, inv]&
+BDiff[ex_, basis_Association, s_sp] := ex /. B[basis["id"], idx__] :> BDiffBySP[basis, {idx}, s]
+BDiff[ex_, basis_Association, inv_Symbol] := ex /. B[basis["id"], idx__] :> BDiffByInv[basis, {idx}, inv]
+BDiff[basis_Association, inv_Symbol] := BDiff[#, basis, inv]&

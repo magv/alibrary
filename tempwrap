@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+import getopt
+import glob
+import subprocess
+import sys
+import fnmatch
+import os
+import re
+import tempfile
+
+def usage():
+    print("usage: tempwrap [-i pattern] [-o pattern] [-e sed-arg] ... fromdir todir -- command [arg ...]")
+    exit(1)
+
+opts, args = getopt.gnu_getopt(sys.argv[1:], "i:o:e:")
+
+i_patterns = []
+o_patterns = []
+sed_args = []
+for opt, arg in opts:
+    if opt == "-i": i_patterns.append(arg)
+    if opt == "-o": o_patterns.append(arg)
+    if opt == "-e": sed_args.append("-e"); sed_args.append(arg)
+if len(args) < 3:
+    usage()
+srcdir = args[0]
+dstdir = args[1]
+command = args[2:]
+
+def mkdir(path):
+    os.makedirs(path, exist_ok=True)
+
+def copy(srcpath, dstpath, sed_args):
+    if sed_args:
+        with open(dstpath, "wb") as f:
+            if srcpath.endswith(".gz"):
+                p1 = subprocess.Popen(["zcat", srcpath], stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(["sed", *sed_args], stdin=p1.stdout, stdout=subprocess.PIPE)
+                p3 = subprocess.Popen(["gzip", "-c"], stdin=p2.stdout, stdout=f)
+                if p3.wait() != 0: raise ValueError("gzip failed")
+                if p2.wait() != 0: raise ValueError("sed failed")
+                if p1.wait() != 0: raise ValueError("zcat failed")
+            else:
+                subprocess.check_call(["sed", *sed_args, srcpath], stdout=f)
+    else:
+        subprocess.check_call(["cp", "-a", srcpath, dstpath])
+
+def copytree(srcdir, dstdir, patterns, sed_args):
+    print("* copy from", repr(srcdir), "into", repr(dstdir))
+    rx = re.compile("|".join(fnmatch.translate(p) for p in patterns)) if patterns else None
+    done_dirs = set()
+    for dirname, dirs, files in os.walk(srcdir):
+        for dir in sorted(dirs):
+            fullpath = os.path.join(dirname, dir)
+            relpath = os.path.relpath(fullpath, srcdir)
+            if rx is None or rx.match(relpath):
+                if relpath not in done_dirs:
+                    print("* mkdir", repr(relpath))
+                    mkdir(os.path.join(dstdir, relpath))
+                    done_dirs.add(relpath)
+        for file in sorted(files):
+            fullpath = os.path.join(dirname, file)
+            relpath = os.path.relpath(fullpath, srcdir)
+            if rx is None or rx.match(relpath):
+                reldirname = os.path.dirname(relpath)
+                if reldirname not in done_dirs:
+                    print("* mkdir", repr(reldirname))
+                    mkdir(os.path.join(dstdir, reldirname))
+                    done_dirs.add(reldirname)
+                print("* copy", repr(relpath))
+                copy(fullpath, os.path.join(dstdir, relpath), sed_args)
+
+with tempfile.TemporaryDirectory(prefix="wrap-") as tmpdir:
+    copytree(srcdir, tmpdir, i_patterns, sed_args)
+    print("* run", *command)
+    subprocess.check_call(command, cwd=tmpdir)
+    copytree(tmpdir, dstdir, o_patterns, [])
