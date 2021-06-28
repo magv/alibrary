@@ -23,7 +23,7 @@
 #
 # Needed packages:
 #
-#     pip3 install mistletoe pygments pygments-mathematica
+#     pip3 install mistletoe pygments pygments-mathematica scour
 
 import glob
 import io
@@ -36,7 +36,9 @@ import pygments.formatters
 import pygments.lexers
 import pygments.token
 import re
+import subprocess
 import sys
+import tempfile
 
 pygments_classmap = {
     pygments.token.Token.Comment: "tc",
@@ -74,6 +76,49 @@ escape_html_map = {
 def escape_html(text):
     return text.translate(escape_html_map)
 
+# ## LaTeX rendering
+
+def latex_to_svg(fragments, idprefix=""):
+    with tempfile.TemporaryDirectory(prefix="latex2svg") as tmpdir:
+        with open(os.path.join(tmpdir, "main.tex"), "w") as f:
+            f.write(LATEX_PREFIX)
+            for fragment in fragments:
+                f.write("\\begin{preview}" + fragment + "\\end{preview}\n")
+            f.write(LATEX_SUFFIX)
+        proc = subprocess.run(
+                ["pdflatex", "-output-directory", tmpdir, "main.tex"], encoding="utf8",
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
+        if proc.returncode != 0:
+            subprocess.run(["cat", "main.tex"], cwd=tmpdir)
+            print(proc.stdout)
+            raise OSError(f"pdflatex failed with code {proc.returncode}")
+        depth = {}
+        for m in re.finditer("Preview: Snippet ([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+)", proc.stdout):
+            depth[int(m.group(1))] = float(m.group(3))/65536 + 0.1
+        for i in range(1, 1+len(fragments)):
+            subprocess.check_call(["pdf2svg", "main.pdf", f"{i}.svg", f"{i}"], cwd=tmpdir)
+            subprocess.check_call(["scour",
+                "--enable-comment-stripping",
+                "--enable-id-stripping",
+                "--enable-viewboxing",
+                "--indent=none",
+                "--shorten-ids",
+                "--strip-xml-prolog",
+                f"{i}.svg", f"{i}o.svg"], cwd=tmpdir, stdout=subprocess.DEVNULL)
+        results = []
+        for i in range(1, 1+len(fragments)):
+            alt = escape_html(fragments[i-1].strip("$ \n"))
+            with open(os.path.join(tmpdir, f"{i}o.svg"), "r") as f:
+                results.append(f.read()
+                    .strip()
+                    .replace("<svg ", f"<svg style=\"vertical-align:baseline;position:relative;bottom:-{depth[i]}pt;\" ")
+                    .replace("<defs>", f"<title>{alt}</title>\n<defs>")
+                    .replace("href=\"#", "href=\"#" + idprefix)
+                    .replace("url(#", "url(#" + idprefix)
+                    .replace("id=\"", "id=\"" + idprefix)
+                )
+        return results
+
 # ## Markdown (i.e. comment) parsing and rendering
 
 # The way this was supposed to work is that in markdown_headers
@@ -89,15 +134,22 @@ class CrossReferenceToken(mistletoe.span_token.SpanToken):
     def __init__(self, match):
         self.target = match.group(1)
 
+class MathToken(mistletoe.span_token.SpanToken):
+    pattern = re.compile(r'(\${1,2})([^$]+?)\1')
+    parse_inner = False
+    parse_group = 0
+
 def name_to_id(text):
     return "".join(word.capitalize() for word in re.split("\\W+", text))
 
 class DocPreRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref):
-        super().__init__(CrossReferenceToken)
+        super().__init__(CrossReferenceToken, MathToken)
         self._toc = []
         self._url = url
         self._xref = xref
+    def render_math_token(self, token):
+        return ""
     def render_heading(self, token):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
@@ -107,12 +159,13 @@ class DocPreRenderer(mistletoe.HTMLRenderer):
 
 class DocRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref, toc, code_language="wl"):
-        super().__init__(CrossReferenceToken)
+        super().__init__(CrossReferenceToken, MathToken)
         self._url = url
         self._xref = xref
         self._toc = toc
         self._code_language = code_language
         self._headers = []
+        self._svg_id = 0
     def render_heading(self, token):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
@@ -132,6 +185,9 @@ class DocRenderer(mistletoe.HTMLRenderer):
         else:
             print(f"WARNING: missing x-ref: {token.target!r}")
             return "[[" + self.render_inner(token) + "]]"
+    def render_math_token(self, token):
+        self._svg_id += 1
+        return latex_to_svg([token.content], idprefix=f"f{self._svg_id}")[0]
     def render_block_code(self, token):
         inner = token.children[0].content
         lexer = pygments.lexers.get_lexer_by_name(token.language or self._code_language)
@@ -399,6 +455,7 @@ HTML_FOOT = """\
 STYLE_CSS = """\
 html { background: white; color: #232627; box-sizing: border-box; }
 html { font-family: "Charter Web","Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
+svg { fill: #232627; }
 body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
@@ -424,6 +481,7 @@ ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: #111; color: #eee; }
+ svg { fill: #eee; }
  pre { background: #222; }
  pre.doc { border-left-color: #433; }
  .tnt { color: #234f82; }
@@ -439,6 +497,28 @@ FAVICON_SVG = """\
  <circle style="fill:#444;stroke:none" cx="2.5" cy="6" r="1" />
  <circle style="fill:#444;stroke:none" cx="7.5" cy="6" r="1" />
 </svg>
+"""
+
+LATEX_PREFIX = r"""
+\documentclass[a4paper,14pt]{extarticle}
+\usepackage[active,noconfig,pdftex,tightpage,lyx]{preview}
+\PreviewBorder=0.1pt
+\usepackage[charter]{mathdesign}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{fit}
+\pgfdeclarelayer{nodelayer}
+\pgfdeclarelayer{edgelayer}
+\pgfsetlayers{edgelayer,nodelayer}
+\tikzset{baseline=0pt}
+\tikzset{inner sep=0}
+\tikzset{every picture/.style={execute at end picture={\node[fit=(current bounding box),inner sep=0.1mm]{};}}}
+\tikzset{every loop/.style={min distance=10mm}}
+\begin{document}
+"""
+
+LATEX_SUFFIX = r"""
+\end{document}
 """
 
 if __name__ == "__main__":
