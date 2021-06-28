@@ -2,8 +2,9 @@
  *
  * In this example we will calculate symbolically and evaluate
  * numerically a photon propagator. The physical model is QCD
- * with generic color group (symbolic Nc, Ca, Cf, etc), `Nf`
- * light quarks, and `Nft` heavy quarks of squared mass `mt2`.
+ * with generic color group (symbolic `Nc`, `Ca`, `Cf`, etc),
+ * `Nf` light quarks, and `Nft` heavy quarks of squared mass
+ * `mt2`.
  *)
 
 (* To start off, for interactive development it is convenient
@@ -21,7 +22,7 @@ $HistoryLength = 2;
 
 Get["alibrary.m"];
 
-(* We shall calculate the corrections of order `alpha_s^NLOOPS`,
+(* We shall calculate the corrections of order $\alpha_s^\text{NLOOPS}$,
  * so define `NLOOPS`.
  *)
 
@@ -47,27 +48,28 @@ projector = delta[lor[-1], lor[-2]] / (d-1);
 
 amplitudes = diagrams // Map[Amplitude[#] * projector&];
 
-(* Cleanup scaleless integrals. Some of these show up as
- * propagators with zero momentum, which means that a part of the
- * graph is disconnected from the rest, and thus scaleless. We can
- * set these to zero immediately.
+(* Cleanup scaleless integrals. Some of these show up as propagators
+ * with zero momentum, which means that a part of the graph is
+ * disconnected from the rest, and thus scaleless. We can set
+ * these to zero immediately.
  *)
 
 amplitudes2 = amplitudes /. den[0] -> 0 /. momentum[0,_] -> 0;
 Print["Non-zero amplitudes: ", amplitudes2//Count[Except[0]], " of ", amplitudes2//Length];
 
-(* In this particular example there is a set of diagrams that
- * are zero by the color factors. For example, those with subdiagrams
- * where a photon turns into a single gluon. In principle we could
- * try to skip these during diagram generation, but we don’t need
- * to. Lets compute color factors instead, and see what turns to zero.
+(* In this particular example there is a set of diagrams that are
+ * zero by the color factors. For example, those with subdiagrams
+ * where a photon turns into a single gluon. In principle we
+ * could try to skip these during diagram generation, but we
+ * don’t need to. Lets compute color factors instead, and see
+ * what turns to zero.
  *)
 
 amplitudes3 = amplitudes2 // RunThroughForm[{ "#call colorsum\n" }];
 Print["Non-zero amplitudes: ", amplitudes3//Count[Except[0]], " of ", amplitudes3//Length];
 
-(* Next we want to define the integral families onto which
- * we shall map the integrals, and which will be used in the IBP
+(* Next we want to define the integral families onto which we
+ * shall map the integrals, and which will be used in the IBP
  * reduction later.
  *
  * To this end, start with the set of denominators per diagram.
@@ -87,16 +89,17 @@ Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union /
 (* In principle we could define the integral families by the
  * denominator sets above, one family per denominator set. This
  * is not very efficient though, as there are symmetries between
- * those families. It’s best to first eliminate denominator
- * sets that are symmetric to others.
+ * those families. It’s best to first eliminate denominator sets
+ * that are symmetric to others.
  *
  * The symmetries manifest most directly in the Feynman parameter
  * space, as permutations of the parameters. In the momenta space
  * this corresponds to loop momenta shifts, and we would like
  * to have a set of momenta shifts that would make symmetric
- * families explicitly identical, or identical to subsets of bigger
- * families, so we could test if a family is symmetric by just
- * asking if the set of denominators a subset of another family.
+ * families explicitly identical, or identical to subsets of
+ * bigger families, so we could test if a family is symmetric by
+ * just asking if the set of denominators a subset of another
+ * family.
  *
  * The tool to compute this momenta mapping is [Feynson], and
  * the interface to it is [[SymmetryMaps]].
@@ -104,8 +107,8 @@ Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union /
  * [feynson]: https://github.com/magv/feynson
  *)
 
-$Feynson = "~/dev/feynson/feynson";
-momentamaps = SymmetryMaps[denominatorsets, loopmomenta, externalmomenta];
+$Feynson = "feynson";
+momentamaps = SymmetryMaps[denominatorsets, loopmomenta];
 Print["Found ", momentamaps // DeleteCases[{}] // Length, " momenta mappings"];
 
 symmetrizeddenominatorsets =
@@ -121,8 +124,9 @@ symmetrizeddenominatorsets =
 Print["Total integral families: ", denominatorsupersets//Length];
 
 (* Let us then construct the IBP basis objects for each unique
- * denominator superset. These objects are just associations storing
- * denominators, and maps from scalar products into the denominators.
+ * denominator superset. These objects are just associations
+ * storing denominators, and maps from scalar products into the
+ * denominators.
  *
  * Also in the case when the denominator set is not sufficient
  * to form the full linear basis of scalar products, we want to
@@ -167,7 +171,9 @@ amplitudesB =
     "id mt1^2 = mt2;\n",
     FormCallZeroSectors[zerosectors]
   }] //
-  MapWithCliProgress[FasterFactor];
+  MapWithProgress[FasterFactor];
+
+FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
 
 (* Next, lets do the IBP reduction.
  *
@@ -180,20 +186,34 @@ amplitudesB =
 
 amplitudesBibp = amplitudesB // KiraIBP[bases];
 
-fullamplitude = amplitudesBibp // Apply[Plus] // Bracket[#, _B, Factor]&;
-
-(* A good correctness check is to see if there is any Xi
- * dependence left. None should remain.
+(* Note that at the moment the mass reconstruction is disabled
+ * because it’s overly slow in Kira; the first of the basis
+ * invariants is set to 1 automatically during reduction. We’ll
+ * take this into account and fix the rest of the amplitude this
+ * way too.
+ *
+ * Hopefully this is temporary.
  *)
 
-FailUnless[FreeQ[fullamplitude , Xi]];
+amplitudesBibp = amplitudesBibp // ReplaceAll[bases[[1,"invariants",1]]->1];
+
+(* The full amplitude is just the sum of the diagram amplitudes.
+ *)
+
+fullamplitude = amplitudesBibp // Apply[Plus] // Bracket[#, _B, Factor]&;
+
+(* A good correctness check is to see if there is any Xi dependence
+ * left. None should remain.
+ *)
+
+FailUnless[FreeQ[fullamplitude, Xi]];
 
 (* Now we have reduced the amplitude to master integrals.
  *
  * The final step is to insert the values of the masters. Of
  * course the masters here are known analytically, but as an
  * example let us evaluate them numerically with [pySecDec],
- * each up to order 2 in epsilon expansion.
+ * each up to $\epsilon^2$.
  *
  * [pySecDec]: https://github.com/gudrunhe/secdec
  *)
@@ -201,7 +221,20 @@ FailUnless[FreeQ[fullamplitude , Xi]];
 masters = amplitudesBibp  // CaseUnion[_B];
 Print["Master integrals: ", masters // Length];
 
+(* The compilation here might take a while. Some of the stuff
+ * being compiled will actually not be used by us, but we still
+ * need to wait for it. The next release of pySecDec will allow
+ * us to skip this.
+ *
+ * There’s also a way to run this step in parallel, across a
+ * computing cluster even. See [[SecDecCompile]] for details.
+ *)
+
 SecDecCompile["secdectmpdir", bases, masters // Map[{#, 2}&]];
+
+(* The integration can also be performed in parallel, on a
+ * cluster. See [[SecDecIntegrate]] for details.
+ *)
 
 pspoint = { sqrq -> 120/100, mt2 -> 34/100 };
 
@@ -209,7 +242,8 @@ pspoint = { sqrq -> 120/100, mt2 -> 34/100 };
   SecDecIntegrate["secdectmpdir", masters, pspoint] //
   Transpose;
 
-(* Finally we have the value and the uncertainty of the full amplitude.
+(* Finally we have the value and the uncertainty of the full
+ * amplitude.
  *)
 
 value = fullamplitude  /.
