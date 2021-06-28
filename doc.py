@@ -157,6 +157,8 @@ class DocPreRenderer(mistletoe.HTMLRenderer):
         self._xref[title] = (self._url, "#" + name_to_id(title))
         return ""
 
+UNIQUE_SVG_ID = 0
+
 class DocRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref, toc, code_language="wl"):
         super().__init__(CrossReferenceToken, MathToken)
@@ -165,7 +167,6 @@ class DocRenderer(mistletoe.HTMLRenderer):
         self._toc = toc
         self._code_language = code_language
         self._headers = []
-        self._svg_id = 0
     def render_heading(self, token):
         inner = self.render_inner(token)
         title = re.sub(r'<.+?>', '', inner)
@@ -186,8 +187,9 @@ class DocRenderer(mistletoe.HTMLRenderer):
             print(f"WARNING: missing x-ref: {token.target!r}")
             return "[[" + self.render_inner(token) + "]]"
     def render_math_token(self, token):
-        self._svg_id += 1
-        return latex_to_svg([token.content], idprefix=f"f{self._svg_id}")[0]
+        global UNIQUE_SVG_ID
+        UNIQUE_SVG_ID += 1
+        return latex_to_svg([token.content], idprefix=f"f{UNIQUE_SVG_ID}")[0]
     def render_block_code(self, token):
         inner = token.children[0].content
         lexer = pygments.lexers.get_lexer_by_name(token.language or self._code_language)

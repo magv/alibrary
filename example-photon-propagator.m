@@ -213,7 +213,7 @@ FailUnless[FreeQ[fullamplitude, Xi]];
  * The final step is to insert the values of the masters. Of
  * course the masters here are known analytically, but as an
  * example let us evaluate them numerically with [pySecDec],
- * each up to $\epsilon^2$.
+ * each up to $\varepsilon^2$.
  *
  * [pySecDec]: https://github.com/gudrunhe/secdec
  *)
