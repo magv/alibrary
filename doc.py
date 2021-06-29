@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 
 pygments_classmap = {
     pygments.token.Token.Comment: "tc",
@@ -78,7 +79,7 @@ def escape_html(text):
 
 # ## LaTeX rendering
 
-def latex_to_svg(fragments, idprefix=""):
+def latex_to_svg(fragments):
     with tempfile.TemporaryDirectory(prefix="latex2svg") as tmpdir:
         with open(os.path.join(tmpdir, "main.tex"), "w") as f:
             f.write(LATEX_PREFIX)
@@ -103,20 +104,16 @@ def latex_to_svg(fragments, idprefix=""):
                 "--enable-viewboxing",
                 "--indent=none",
                 "--shorten-ids",
+                "--no-line-breaks",
                 "--strip-xml-prolog",
                 f"{i}.svg", f"{i}o.svg"], cwd=tmpdir, stdout=subprocess.DEVNULL)
         results = []
         for i in range(1, 1+len(fragments)):
             alt = escape_html(fragments[i-1].strip("$ \n"))
             with open(os.path.join(tmpdir, f"{i}o.svg"), "r") as f:
-                results.append(f.read()
-                    .strip()
-                    .replace("<svg ", f"<svg style=\"vertical-align:baseline;position:relative;bottom:-{depth[i]}pt;\" ")
-                    .replace("<defs>", f"<title>{alt}</title>\n<defs>")
-                    .replace("href=\"#", "href=\"#" + idprefix)
-                    .replace("url(#", "url(#" + idprefix)
-                    .replace("id=\"", "id=\"" + idprefix)
-                )
+                svg = urllib.parse.quote(f.read().strip())
+                img = f"<img alt=\"{alt}\" style=\"vertical-align:-{depth[i]}pt\" src=\"data:image/svg+xml,{svg}\"/>"
+                results.append(img)
         return results
 
 # ## Markdown (i.e. comment) parsing and rendering
@@ -157,8 +154,6 @@ class DocPreRenderer(mistletoe.HTMLRenderer):
         self._xref[title] = (self._url, "#" + name_to_id(title))
         return ""
 
-UNIQUE_SVG_ID = 0
-
 class DocRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref, toc, code_language="wl"):
         super().__init__(CrossReferenceToken, MathToken)
@@ -187,9 +182,7 @@ class DocRenderer(mistletoe.HTMLRenderer):
             print(f"WARNING: missing x-ref: {token.target!r}")
             return "[[" + self.render_inner(token) + "]]"
     def render_math_token(self, token):
-        global UNIQUE_SVG_ID
-        UNIQUE_SVG_ID += 1
-        return latex_to_svg([token.content], idprefix=f"f{UNIQUE_SVG_ID}")[0]
+        return latex_to_svg([token.content])[0]
     def render_block_code(self, token):
         inner = token.children[0].content
         lexer = pygments.lexers.get_lexer_by_name(token.language or self._code_language)
@@ -457,7 +450,7 @@ HTML_FOOT = """\
 STYLE_CSS = """\
 html { background: white; color: #232627; box-sizing: border-box; }
 html { font-family: "Charter Web","Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
-svg { fill: #232627; }
+img { filter: invert(0.15); }
 body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
@@ -483,7 +476,7 @@ ul ul li:last-child:after { content: ""; }
 hr { border: 2px dashed #efeef0; }
 @media screen and (prefers-color-scheme: dark) {
  html { background: #111; color: #eee; }
- svg { fill: #eee; }
+ img { filter: invert(0.93); }
  pre { background: #222; }
  pre.doc { border-left-color: #433; }
  .tnt { color: #234f82; }
