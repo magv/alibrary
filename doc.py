@@ -67,8 +67,6 @@ for tok, classname in list(pygments_classmap.items()):
             todo.extend(tok.subtypes)
 
 escape_html_map = {
-    ord("'"): '&#39;',
-    ord('"'): '&quot;',
     ord('&'): '&amp;',
     ord('<'): '&lt;',
     ord('>'): '&gt;'
@@ -76,6 +74,17 @@ escape_html_map = {
 
 def escape_html(text):
     return text.translate(escape_html_map)
+
+escape_html_attr_map = {
+    ord("'"): '&#39;',
+    ord('"'): '&quot;',
+    ord('&'): '&amp;',
+    ord('<'): '&lt;',
+    ord('>'): '&gt;'
+}
+
+def escape_html_attr(text):
+    return text.translate(escape_html_attr_map)
 
 # ## LaTeX rendering
 
@@ -113,7 +122,7 @@ def latex_to_svg(fragments):
         results = []
         for i in range(1, 1+len(fragments)):
             classname = "class=\"display\" " if fragments[i-1].startswith("$$") else ""
-            alt = escape_html(fragments[i-1].strip("$ \n"))
+            alt = escape_html_attr(fragments[i-1].strip("$ \n"))
             with open(os.path.join(tmpdir, f"{i}o.svg"), "r") as f:
                 svg = urllib.parse.quote(f.read().strip())
                 img = f"<img alt=\"{alt}\" {classname}style=\"vertical-align:-{depth[i]}pt\" src=\"data:image/svg+xml,{svg}\"/>"
