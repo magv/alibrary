@@ -28,7 +28,9 @@ Get["alibrary.m"];
 
 NLOOPS = 2;
 
-(* Generate the diagrams with one incoming photon and one outgoing
+(* ## Diagrams
+ *
+ * Generate the diagrams with one incoming photon and one outgoing
  * photon with QGraf by the way of [[mkdia.py]].
  *)
 
@@ -36,7 +38,9 @@ SafeRun["./mkdia.py dia-A-A-", NLOOPS, ".m"];
 diagrams = SafeGet[MkString["dia-A-A-", NLOOPS, ".m"]];
 Print["Loaded ", diagrams//Length, " diagrams"];
 
-(* Because the (amputated) photon propagator has open Lorentz
+(* ## Tensor projectors
+ *
+ * Because the (amputated) photon propagator has open Lorentz
  * indices corresponding to the incoming and outgoing photons,
  * we need to project it to scalar values somehow.
  *
@@ -69,7 +73,9 @@ projector = delta[lor[-1], lor[-2]] / (d-1);
 
 amplitudes = diagrams // Map[Amplitude[#] * projector&];
 
-(* Cleanup scaleless integrals. Some of these show up as propagators
+(* ## Zero integral cleanup
+ * 
+ * Cleanup scaleless integrals. Some of these show up as propagators
  * with zero momentum, which means that a part of the graph is
  * disconnected from the rest, and thus scaleless. We can set
  * these to zero immediately.
@@ -89,7 +95,9 @@ Print["Non-zero amplitudes: ", amplitudes2//Count[Except[0]], " of ", amplitudes
 amplitudes3 = amplitudes2 // RunThroughForm[{ "#call colorsum\n" }];
 Print["Non-zero amplitudes: ", amplitudes3//Count[Except[0]], " of ", amplitudes3//Length];
 
-(* Next we want to define the integral families onto which we
+(* ## Integral family construction
+ *
+ * Next we want to define the integral families onto which we
  * shall map the integrals, and which will be used in the IBP
  * reduction later.
  *
@@ -159,7 +167,9 @@ bases = denominatorsupersets //
     First[#2], #1 // NormalizeDens // Sort, loopmomenta, externalmomenta, {sp[q,q]->sqrq}
   ]&];
 
-(* OK, now that we have the IBP bases, we can convert the
+(* ## Amplitude conversion
+ * 
+ * OK, now that we have the IBP bases, we can convert the
  * amplitudes to them.
  *
  * One practical thing to start with is to identify the set of
@@ -196,7 +206,9 @@ amplitudesB =
 
 FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
 
-(* Next, lets do the IBP reduction.
+(* ## IBP reduction
+ * 
+ * Next, lets do the IBP reduction.
  *
  * Now, [[KiraIBP]] is the simple interface to IBP with [Kira].
  * It is probably too simplistic to work automatically for larger
@@ -230,6 +242,8 @@ fullamplitude = amplitudesBibp // Apply[Plus] // Bracket[#, _B, Factor]&;
 FailUnless[FreeQ[fullamplitude, Xi]];
 
 (* Now we have reduced the amplitude to master integrals.
+ *
+ * ## Numerical evaluation
  *
  * The final step is to insert the values of the masters. Of
  * course the masters here are known analytically, but as an
