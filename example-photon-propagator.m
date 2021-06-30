@@ -28,7 +28,8 @@ Get["alibrary.m"];
 
 NLOOPS = 2;
 
-(* Generate the diagrams with QGraf by the way of [[mkdia.py]].
+(* Generate the diagrams with one incoming photon and one outgoing
+ * photon with QGraf by the way of [[mkdia.py]].
  *)
 
 SafeRun["./mkdia.py dia-A-A-", NLOOPS, ".m"];
@@ -37,8 +38,28 @@ Print["Loaded ", diagrams//Length, " diagrams"];
 
 (* Because the (amputated) photon propagator has open Lorentz
  * indices corresponding to the incoming and outgoing photons,
- * we need to project it to scalar values somehow. Here is the
- * projector we shall use.
+ * we need to project it to scalar values somehow.
+ *
+ * If $H^{\mu\nu}$ is the propagator, and $q$ is the momentum
+ * flowing through it, there are two tensor structures that it
+ * can be made of:
+ *
+ * $$ H^{\mu\nu} = A g^{\mu\nu} + B q^\mu q^\nu. $$
+ *
+ * Because of the Ward identities,
+ *
+ * $$ q_\mu H^{\mu\nu} = H^{\mu\nu} q_\nu = 0, $$
+ *
+ * this form is further constrained to just
+ *
+ * $$ H^{\mu\nu} = H ( g^{\mu\nu} - q^\mu q^\nu / q^2 ). $$
+ *
+ * Then to get the scalar $H$ from $H^{\mu\nu}$ we can construct
+ * a projector as
+ *
+ * $$ H = H^{\mu\nu} g_{\mu\nu} / (d-1). $$
+ *
+ * Here it is in Mathematica notation.
  *)
 
 projector = delta[lor[-1], lor[-2]] / (d-1);
