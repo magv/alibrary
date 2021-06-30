@@ -10,11 +10,14 @@
 # as Markdown, code is syntax-highlighted with [Pygments]. Markdown
 # is extended in two ways:
 #
-# 1. The [[double bracket]] syntax means a link to a header
+# 1. The `[[double bracket]]` syntax means a link to a header
 #    somewhere in the current or neighboring files.
 #
 # 2. A comment block directly preceeding a function definition
 #    automatically creates a sub-sub-section named after the function.
+#
+# 3. The `$dollar$` syntax means math, and will be rendered via
+#    LaTeX. The `$$double dollar$$` syntax means display math.
 #
 # The code hightlight also cross-links function names to their
 # definitions and/or official documentation (for Mathematica).
