@@ -84,7 +84,10 @@ def latex_to_svg(fragments):
         with open(os.path.join(tmpdir, "main.tex"), "w") as f:
             f.write(LATEX_PREFIX)
             for fragment in fragments:
-                f.write("\\begin{preview}" + fragment + "\\end{preview}\n")
+                if fragment.startswith("$$"):
+                    f.write("\\begin{preview}$\displaystyle " + fragment.strip("$") + "$\\end{preview}\n")
+                else:
+                    f.write("\\begin{preview}" + fragment + "\\end{preview}\n")
             f.write(LATEX_SUFFIX)
         proc = subprocess.run(
                 ["pdflatex", "-output-directory", tmpdir, "main.tex"], encoding="utf8",
@@ -109,10 +112,11 @@ def latex_to_svg(fragments):
                 f"{i}.svg", f"{i}o.svg"], cwd=tmpdir, stdout=subprocess.DEVNULL)
         results = []
         for i in range(1, 1+len(fragments)):
+            classname = "class=\"display\" " if fragments[i-1].startswith("$$") else ""
             alt = escape_html(fragments[i-1].strip("$ \n"))
             with open(os.path.join(tmpdir, f"{i}o.svg"), "r") as f:
                 svg = urllib.parse.quote(f.read().strip())
-                img = f"<img alt=\"{alt}\" style=\"vertical-align:-{depth[i]}pt\" src=\"data:image/svg+xml,{svg}\"/>"
+                img = f"<img alt=\"{alt}\" {classname}style=\"vertical-align:-{depth[i]}pt\" src=\"data:image/svg+xml,{svg}\"/>"
                 results.append(img)
         return results
 
@@ -451,6 +455,7 @@ STYLE_CSS = """\
 html { background: white; color: #232627; box-sizing: border-box; }
 html { font-family: "Charter Web","Charter",serif; font-size: 18px; hyphens: auto; text-align: justify; line-height: 1.25; }
 img { filter: invert(0.15); }
+img.display { display: block; margin: 0 auto; }
 body { margin: 0 auto; padding: 0 10px; max-width: 800px; }
 h1:first-child { margin-top: 0px; }
 h1,h2,h3 { margin-top: 36px; margin-bottom: 12px; }
