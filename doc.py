@@ -111,12 +111,13 @@ def latex_to_svg(fragments):
         for i in range(1, 1+len(fragments)):
             subprocess.check_call(["pdf2svg", "main.pdf", f"{i}.svg", f"{i}"], cwd=tmpdir)
             subprocess.check_call(["scour",
+                "--create-groups",
                 "--enable-comment-stripping",
                 "--enable-id-stripping",
                 "--enable-viewboxing",
                 "--indent=none",
-                "--shorten-ids",
                 "--no-line-breaks",
+                "--shorten-ids",
                 "--strip-xml-prolog",
                 f"{i}.svg", f"{i}o.svg"], cwd=tmpdir, stdout=subprocess.DEVNULL)
         results = []
