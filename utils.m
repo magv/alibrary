@@ -243,6 +243,21 @@ FailUnless[tests___] := Module[{test, idx, result},
 ];
 SetAttributes[FailUnless, {HoldAll}]
 
+(* Format a real number in the scientific notation, e.g. 1.23e-4,
+ * with a fixed total width (if it can be achieved).
+ *)
+FormatScientific[x:(_Integer|_Real), width_Integer] :=
+Module[{sign, man, exp, zeros}, 
+  {man, exp} = MantissaExponent[x//N, 10];
+  sign = If[man >= 0, "", "-"];
+  {man, exp} = {Abs[man]*10, exp - 1};
+  exp = "e" <> ToString[exp];
+  man = ToString[NumberForm[man, Max[1, width - StringLength[sign] - StringLength[exp] - 1]]];
+  zeros = width - StringLength[sign] - StringLength[man] - StringLength[exp];
+  If[zeros > 0, sign <> man <> StringRepeat["0", zeros] <> exp, sign <> man <> exp]
+]
+FormatScientific[width_Integer] := FormatScientific[#, width]&
+
 (* Format a quantity in a human-readable format using the given
  * units. The units are specified as a list of string names and
  * numeric values.
