@@ -55,25 +55,29 @@ FasterFactor[ex_] := Module[{gcd, terms},
    ]
   ]
 
-FastMatrixRank[mx_] := Module[{vars, mnx},
-  vars = mx // CaseUnion[_Symbol];
+(* Determine the rank of a matrix using modular arithmetics, fast.
+ *)
+FastMatrixRank[mx_] := FastMatrixRank[mx, mx // CaseUnion[_Symbol]]
+FastMatrixRank[mx_, vars_List] := Module[{mnx},
   Table[
     mxn = mx /. Association[MapThread[Rule, {vars, RandomInteger[{2^20, 2^30}, Length[vars]]}]];
     MatrixRank[mxn, Modulus->RandomPrime[{2^30, 2^31-1}]]
     ,
-    10
+    5
   ] // Max
 ];
 
 (* Given a list of vectors, select a linearly independent subset,
  * return the indices of the vectors in it. *)
-SelectAnyBasis[vectors_List] := Module[{dim, basisidx, basis, i, newbasis, rank},
+SelectAnyBasis[vectors_List] := Module[{vars, dim, basisidx, basis, i, newbasis, rank},
+  vars = basis // CaseUnion[_Symbol];
   dim = Length[vectors[[1]]];
   basis = {};
   basisidx = {};
   Do[
+    Print[i];
     newbasis = Append[basis, vectors[[i]]];
-    rank = newbasis // FastMatrixRank;
+    rank = FastMatrixRank[newbasis, vars];
     If[rank =!= Length[newbasis], Continue[]];
     basis = newbasis;
     basisidx = Append[basisidx, i];
