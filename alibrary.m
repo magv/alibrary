@@ -1637,17 +1637,29 @@ SecDecIntegralName[integral_B] := integral //
 SecDecIntegralName[DimShift[integral_B, n_]] :=
   SecDecIntegralName[integral] <> "_dshift" <> ToString[n]
 
-(* Prepare pySecDec files in a given directory for the
- * given list of integrals. These can then be compiled manually
- * by running `make compile`.
+(* Convert an expression into a string in Sympy format.
  *
- * Each integral in a list can be:
- * - `B[...]`;
- * - `DimShift[B[...], n]`;
+ * This might need additional work to correctly convert more
+ * forms.
+ *)
+ToSympy[ex_] := ex /. Pi -> pi // InputForm // ToString
+
+(* Prepare pySecDec files in a given directory for the given
+ * list of integrals. These can then be compiled manually by
+ * running `make compile`.
+ *
+ * Each integral in the list can be:
+ * - `B[...] * prefactor`;
+ * - `DimShift[B[...], n] * prefactor`;
  * - {integral, epsilon-order}.
  *
  * One can alternatively use [[SecDecCompile]] to both prepare
  * and compile.
+ *
+ * Note that the loop integration in the integrals is assumed to
+ * come with physical normalization, i.e. $1/(2\pi)^d$ per loop,
+ * which is different from the default pySecDec normalization
+ * ($1/(i\pi^{d/2})$ per loop).
  *
  * The resulting directory consists of a `Makefile` and a set
  * of python scripts. While compilation can be performed by just
@@ -1666,22 +1678,25 @@ SecDecIntegralName[DimShift[integral_B, n_]] :=
  * machine, if it has 99 processors and lots of free memory.
  *)
 SecDecPrepare[basedir_String, bases_List, integrals_List] :=
-Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order},
+Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order, prefactor},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   EnsureDirectory[basedir];
   Do[
-    {name, integral, dim, order} = integral // Replace[{
-        b_B :> {SecDecIntegralName[b], b, 4, 0},
-        int:DimShift[b_B, n_] :> {SecDecIntegralName[int], b, 4 + n, 0},
-        {b_B, ord_} :> {SecDecIntegralName[b], b, 4, ord},
-        {int:DimShift[b_B, n_], ord_} :> {SecDecIntegralName[int], b, 4+n, ord}
+    {name, integral, dim, order, prefactor} = integral // Replace[{
+        pre_. * b_B :> {SecDecIntegralName[b], b, 4, 0, pre},
+        pre_. * int:DimShift[b_B, n_] :> {SecDecIntegralName[int], b, 4 + n, 0, pre},
+        {pre_. * b_B, ord_} :> {SecDecIntegralName[b], b, 4, ord, pre},
+        {pre_. * int:DimShift[b_B, n_], ord_} :> {SecDecIntegralName[int], b, 4+n, ord, pre}
     }];
     Print["* Making ", basedir, "/", name, ".*"];
     basisid = integral[[1]];
     indices = integral[[2;;]] // Apply[List];
     basis = bid2basis[basisid];
-    MaybeMkFile[basedir <> "/" <> name <> ".generate.py",
+    MaybeMkFile[basedir <> "/" <> name <> ".compile.py",
       "#!/usr/bin/env python3\n",
+      "import os\n",
+      "import subprocess\n",
+      "import tempfile\n",
       "import pySecDec as psd\n",
       "loopint = psd.loop_integral.LoopIntegralFromPropagators(\n",
       "  loop_momenta = ['", basis["loopmom"] // Riffle[#, "','"]&, "'],\n",
@@ -1705,37 +1720,53 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order},
         ] // Riffle[#, ",\n  "]&,
       "\n  ]\n",
       ")\n",
-      "psd.loop_integral.loop_package(\n",
-      "    name = '", name, "',\n",
-      "    loop_integral = loopint,\n",
-      "    real_parameters = [",
+      "if __name__ == '__main__':\n",
+      "    subprocess.check_call(['rm', '-rf', '", name, "', '", name, "_coefficients'])\n",
+      "    threads = int(os.environ.get('THREADS', '1'))\n",
+      "    cwd = os.getcwd()\n",
+      "    with tempfile.TemporaryDirectory(prefix='psd') as tmp:\n",
+      "        os.chdir(tmp)\n",
+      "        psd.loop_integral.loop_package(\n",
+      "            name = '", name, "',\n",
+      "            loop_integral = loopint,\n",
+      "            real_parameters = [",
         basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
       "],\n",
-      "    additional_prefactor = '(I*pi^(", dim/2, "-eps)/(2*pi)^(", dim, "-2*eps))^", Length[basis["loopmom"]], "',\n",
-      "    decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
-      "    requested_order = ", order, ",\n",
-      "    form_optimization_level = 2,\n",
-      "    form_work_space = '100M',\n",
-      "    form_threads = 1,\n",
-      "    contour_deformation = True\n",
-      ")\n"
+      "            additional_prefactor = '",
+        (* Convert from pySecDec to the physical normalization. *)
+        (I*Pi^(dim/2-eps)/(2*Pi)^(dim-2*eps))^Length[basis["loopmom"]] * prefactor // Factor // ToSympy,
+      "',\n",
+      "            decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
+      "            requested_order = ", order, ",\n",
+      "            processes = threads,\n",
+      "            form_optimization_level = 2,\n",
+      "            form_work_space = '100M',\n",
+      "            form_threads = 1,\n",
+      "            contour_deformation = True\n",
+      "        )\n",
+      "        subprocess.check_call(['make', '-C', '", name, "', '-j', str(threads), '", name, "_pylink.so'])\n",
+      "        subprocess.check_call(['mv', '", name, "/", name, "_pylink.so', cwd])\n",
+      "        subprocess.check_call(['mv', '", name, "/", name, "_coefficients', cwd])\n",
+      "        subprocess.check_call(['rm', '-rf', '", name, "'])\n"
     ];
     MaybeMkFile[basedir <> "/" <> name <> ".integrate.py",
       "#!/usr/bin/env python3\n",
-      "import sys\n",
       "import os\n",
+      "import sys\n",
       "import pySecDec as psd\n",
-      "argmap = dict(arg.split('=') for arg in sys.argv[1:])\n",
-      "parameters = [",
+      "if __name__ == '__main__':\n",
+      "    argmap = dict(arg.split('=') for arg in sys.argv[1:])\n",
+      "    parameters = [",
         basis["invariants"] // Map[{"float(argmap['", #, "'])"}&] // Riffle[#, ", "]&,
       "]\n",
-      "threads = int(os.environ.get('THREADS', '1'))\n",
-      "libfile = './", name, "_pylink.so'\n",
-      "lib = psd.integral_interface.IntegralLibrary(libfile)\n",
-      "lib.use_Qmc(transform='korobov3', epsrel=1e-6, epsabs=1e-08, maxeval=10**9, cputhreads=threads)\n",
-      "int_wo_prefactor, prefactor, int_with_prefactor = lib(real_parameters=parameters, deformation_parameters_maximum=1e-2, deformation_parameters_minimum=1e-8)\n",
-      "result = '{%s,\\n%s}' % psd.integral_interface.series_to_mathematica(int_with_prefactor)\n",
-      "print(result)\n"
+      "    threads = int(os.environ.get('THREADS', '1'))\n",
+      "    libfile = './", name, "_pylink.so'\n",
+      "    lib = psd.integral_interface.IntegralLibrary(libfile)\n",
+      "    lib.use_Qmc(transform='korobov3', cputhreads=threads, verbosity=1)\n",
+      "    int_wo_prefactor, prefactor, int_with_prefactor = lib(real_parameters=parameters, verbose=True, epsrel=1e-4, epsabs=1e-14, maxeval=10**9)\n",
+      "    print(int_with_prefactor, file=sys.stderr)\n",
+      "    result = '{%s,\\n%s}' % psd.integral_interface.series_to_mathematica(int_with_prefactor)\n",
+      "    print(result)\n"
     ];
     ,
     {integral, integrals}];
@@ -1745,20 +1776,18 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order},
     "RUN ?=\n",
     Table[
       name = integral // Replace[{
-        {b_, _} :> SecDecIntegralName[b],
-        b_ :> SecDecIntegralName[b]
+        pre_. * b_B :> SecDecIntegralName[b],
+        pre_. * int:DimShift[b_B, n_] :> SecDecIntegralName[int],
+        {pre_. * b_B, ord_} :> SecDecIntegralName[b],
+        {pre_. * int:DimShift[b_B, n_], ord_} :> SecDecIntegralName[int]
       }];
       {
         "\n",
         "compile: ", name , "_pylink.so\n",
         "integrate: ", name , "_value.m\n",
         "\n",
-        name, "_pylink.so: ", name, ".generate.py\n",
-        "\trm -rf ", name, "/\n",
-        "\t${RUN} python3 ", name, ".generate.py\n",
-        "\t${RUN} make -C ", name, " -j${THREADS} ", name, "_pylink.so\n",
-        "\tmv ", name, "/", name, "_pylink.so $@\n",
-        "\trm -rf ", name, "\n",
+        name, "_pylink.so: ", name, ".compile.py\n",
+        "\t${RUN} python3 ", name, ".compile.py\n",
         "\n",
         (* This part is tricky: because `$RUN` might send the
         * command to a cluster, and there is some delay in the
@@ -1773,7 +1802,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order},
         *)
         name, "_value.m: ", name, "_pylink.so ", name, ".integrate.py invariants.txt\n",
         "\ttouch -t 199001010000 $@\n",
-        "\t${RUN} python3 ", name, ".integrate.py $$(cat invariants.txt) > $@ || rm -f $@\n"
+        "\t${RUN} python3 ", name, ".integrate.py $$(cat invariants.txt) >$@ 2>$@.log || rm -f $@\n"
       }
       ,
       {integral, integrals}]
@@ -1968,18 +1997,15 @@ BDiffByMass[basis_Association, indices_List, mass_Symbol] := Module[{dens, ddens
 ]
 BDiffBySP[basis_Association, indices_List, s:sp[p1_Symbol, p1_Symbol]] := BDiffBySP[basis, indices, s] =
 Module[{igm, pi},
-  Print["BDiff ", basis["id"], indices, p1];
   igm = BasisInvGramMatrixMap[basis];
   1/2 Sum[igm[pi,p1] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
 ]
 BDiffBySP[basis_Association, indices_List, s:sp[p1_Symbol, p2_Symbol]] := BDiffBySP[basis, indices, s] =
 Module[{igm, pi},
-  Print["BDiff ", basis["id"], indices, p1,p2];
   igm = BasisInvGramMatrixMap[basis];
   Sum[igm[pi,p2] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
 ]
 BDiffByInv[basis_Association, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
-  Print["BDiff ", basis["id"], indices, inv];
   FailUnless[Length[basis["denominators"]] === Length[indices]];
   invlist = BasisExternalInvariantSymbols[basis];
   splist = BasisExternalScalarProducts[basis];
