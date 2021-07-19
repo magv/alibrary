@@ -931,7 +931,7 @@ KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
 
 (* Create Kira’s `kinematics.yaml` config file.
  *)
-MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, variabledimensions_List] :=
+MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, variabledimensions_List, one_] :=
   MaybeMkFile[filename,
     "kinematics:\n",
     " incoming_momenta: [", extmom // Riffle[#, ", "]&, "]\n",
@@ -945,7 +945,11 @@ MkKiraKinematicsYaml[filename_, extmom_List, sprules_List, variabledimensions_Li
       (sp[p_] -> v_) :> {"  - [[", p//InputForm, ",", p//InputForm, "], ", v//InputForm, "]\n"},
       (sp[p1_, p2_] -> v_) :> {"  - [[", p1//InputForm, ",", p2//InputForm, "], ", v//InputForm, "]\n"}
     ] // Union,
-    " symbol_to_replace_by_one: ", variabledimensions[[1,1]], "\n"
+    If[one =!= None,
+      {" symbol_to_replace_by_one: ", one, "\n"}
+      ,
+      {"# symbol_to_replace_by_one: ", variabledimensions[[1,1]], "\n"}
+    ]
   ];
 
 (* Create Kira’s `integralfamilies.yaml` config file.
@@ -1246,7 +1250,7 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
   FailUnless[Sort[massdims[[;;,1]]] === Sort[bases[[1, "invariants"]]]];
   massdims = bases[[1, "invariants"]] // Map[(# -> (# /. massdims))&];
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
-    bases[[1,"externalmom"]], bases[[1,"sprules"]], massdims];
+    bases[[1,"externalmom"]], bases[[1,"sprules"]], massdims, OptionValue[ReplaceByOne]];
   MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml",(* bases];*)
     bases // Select[MemberQ[bids, #["id"]]&]];
   MkKiraJobsYaml[dirname <> "/reduce.yaml", bids, bid2topsectors, "reduce"];
@@ -1298,7 +1302,7 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
     "\tdate >$@\n"
   ];
 ]
-Options[MkKiraConfig] = {PreferredMasters -> {}};
+Options[MkKiraConfig] = {PreferredMasters -> {}, ReplaceByOne -> None};
 
 (* Populate a directory with Kira subdirectories for each basis, and
  * write a Makefile that runs Kira for each of them. With this done,
@@ -1327,7 +1331,8 @@ Module[{bid, bids, bid2basis, name},
       dirname <> "/" <> KiraBasisName[bid],
       {bid2basis[bid]},
       blist // CaseUnion[B[bid,___]],
-      PreferredMasters -> OptionValue[PreferredMasters]
+      PreferredMasters -> OptionValue[PreferredMasters],
+      ReplaceByOne -> OptionValue[ReplaceByOne]
     ];
     ,
     {bid, bids}];
@@ -1385,7 +1390,7 @@ Module[{bid, bids, bid2basis, name},
       {bid, bids}]
   ];
 ]
-Options[MkKiraConfigByBasis] = {PreferredMasters -> {}};
+Options[MkKiraConfigByBasis] = {PreferredMasters -> {}, ReplaceByOne -> None};
 
 (* Read the IBP tables from a Kira directory, apply them to a
  * given expression.
