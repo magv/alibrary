@@ -520,6 +520,9 @@ LATEX_PREFIX = r"""
 \usepackage{amsmath}
 \usepackage{tikz}
 \usetikzlibrary{fit}
+\usetikzlibrary{decorations.markings}
+\usetikzlibrary{decorations.pathmorphing}
+\usetikzlibrary{decorations.pathreplacing}
 \pgfdeclarelayer{nodelayer}
 \pgfdeclarelayer{edgelayer}
 \pgfsetlayers{edgelayer,nodelayer}
