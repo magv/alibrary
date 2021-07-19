@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# This script is a generic wrapper that copies a directory (or
+# parts of it) into a temporary location (under $TMP), executes
+# a command from that location, and copies the results back.
+#
+# Such a wrapper is useful to force all temporary files of a
+# command to reside on a fast local disk.
+
 import getopt
 import glob
 import subprocess
