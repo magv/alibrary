@@ -1828,17 +1828,17 @@ ExpandSP[sp[p1_,p2_]] := p1*p2//Expand//Terms//MapReplace[
 ExpandSP[ex_] := ex /. s_sp :> ExpandSP[s]
 
 (* “Raising” dimensional recurrence: expresses a given integral
- * in (d-2) space-time dimensions as a linear combination of
+ * in $d-2$ space-time dimensions as a linear combination of
  * integrals in d space-time dimensions.
  *
- * Note that Minkowski metrics is assumed. Multiply by `(-1)^L`
+ * Note that Minkowski metrics is assumed. Multiply by $(-1)^L$
  * to get Euclidean.
  *
  * Also be careful about the normalization: the integrals are
- * assumed to use loop integration measure of `d^d l/(I Pi^(d/2))`,
- * which is not the physical `d^d l/(2 Pi)^d`. To obtain relations
+ * assumed to use loop integration measure of $d^d l/(i\pi^{d/2})$,
+ * which is not the physical $d^d l/(2\pi)^d$. To obtain relations
  * between physically normalized integrals, multiply the result
- * of this function by `(4 Pi)^L`.
+ * of this function by $(4\pi)^L$.
  *
  * Finally, you might want to cleanup the output of this function
  * using [[ZeroSectors]], because some of the integrals will come
@@ -1867,13 +1867,13 @@ RaisingDRR[ex_, basis_Association] := Module[{loopmom, i, j, k, mx, op, OP, bid,
 ]
 
 (* “Lowering” dimensional recurrence: expresses a given integral
- * in (d+2) space-time dimensions as a linear combination of
+ * in $d+2$ space-time dimensions as a linear combination of
  * integrals in d space-time dimensions.
  *
- * Note that Minkowski metrics is assumed. Multiply by `(-1)^L`
+ * Note that Minkowski metrics is assumed. Multiply by $(-1)^L$
  * to get Euclidean.
  *
- * Same normalization issue as in [[RaisingDRR]]; divide by `(4 Pi)^L`
+ * Same normalization issue as in [[RaisingDRR]]; divide by $(4\pi)^L$
  * to get the relation between physically normalized integrals.
  *)
 LoweringDRR[ex_, basis_Association] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
