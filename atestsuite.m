@@ -16,6 +16,7 @@ FailUnless[FormatScientific[1.2, 4] === "1.e0"];
 FailUnless[FormatScientific[0.1234, 6] === "1.2e-1"];
 FailUnless[FormatScientific[15.5, 4] === "2.e1"];
 FailUnless[FormatScientific[123456, 0] === "1.e5"];
+FailUnless[FormatScientific[0, 6] === "0.00e0"];
 
 Module[{e = y + x y + 1/x/(x - a)/(x + 1) + Hlog[x, {1, y, 3}]/x},
   FailUnless[ FullSimplify[D[HlogInt[e, x], x] - e] === 0 ]]
