@@ -18,6 +18,10 @@ FailUnless[FormatScientific[15.5, 4] === "2.e1"];
 FailUnless[FormatScientific[123456, 0] === "1.e5"];
 FailUnless[FormatScientific[0, 6] === "0.00e0"];
 
+FailUnless[ProbablyZeroQ[0] === True];
+FailUnless[ProbablyZeroQ[x] === False];
+FailUnless[ProbablyZeroQ[(x+1)^2-x^2-2x-1] === True];
+
 Module[{e = y + x y + 1/x/(x - a)/(x + 1) + Hlog[x, {1, y, 3}]/x},
   FailUnless[ FullSimplify[D[HlogInt[e, x], x] - e] === 0 ]]
 
@@ -40,6 +44,20 @@ FailUnless[
   Hpl[1, {0, 0, 0, 2, 0, 0, 0}] // Hpl1ExtractTrail0 // # === -35 Hpl[1, {8}]&,
   Hpl[1, {0, 0, 0, 2, 0, 0, 0}] // HplToMzv // # === -35 Mzv[8]&
 ];
+
+FailUnless[
+  MzvToHpl[Mzv[+3,+2,+2,+5]] === +Hpl[1, {+3,+2,+2,+5}],
+  MzvToHpl[Mzv[+3,-2,+2,+5]] === -Hpl[1, {+3,-2,-2,-5}],
+  MzvToHpl[Mzv[+3,+2,-2,+5]] === +Hpl[1, {+3,+2,-2,-5}],
+  MzvToHpl[Mzv[+3,+2,+2,-5]] === -Hpl[1, {+3,+2,+2,-5}],
+  MzvToHpl[Mzv[+3,-2,-2,+5]] === -Hpl[1, {+3,-2,+2,+5}],
+  MzvToHpl[Mzv[+3,-2,+2,-5]] === +Hpl[1, {+3,-2,-2,+5}],
+  MzvToHpl[Mzv[+3,+2,-2,-5]] === -Hpl[1, {+3,+2,-2,+5}],
+  MzvToHpl[Mzv[+3,-2,-2,-5]] === +Hpl[1, {+3,-2,+2,-5}],
+  MzvToHpl[Mzv[-3,+2,+2,+5]] === +Hpl[1, {-3,-2,-2,-5}]
+];
+
+FailUnless[HlogSeries[Hlog[x, {a,b,c}], 3] === (-1)^3/3! x^3/a/b/c + O[x]^4];
 
 (*
  * ## Tests for [[alibrary.m]]

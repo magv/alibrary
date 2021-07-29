@@ -171,6 +171,20 @@ ZeroMatrixQ[mx_SparseArray] := Length[mx["NonzeroPositions"]] === 0
 ZeroMatrixQ[mx_List] := mx // Flatten // Union // # === {0}&
 ZeroMatrixQ[_] := False
 
+(* Return True if a rational expression is probably zero, and
+ * False if it is definitely not zero.
+ *)
+ProbablyZeroQ[ex_] := Module[{vars, map},
+  vars = ex // CaseUnion[_Symbol];
+  Quiet[
+    AllTrue[Range[10], (
+      map = vars // Map[# -> RandomInteger[{10, 10000}]&] // Association;
+      Check[Together[ex /. map] === 0, True, {Power::infy, Infinity::indet}]
+    )&]
+    ,
+    {Power::infy, Infinity::indet}]
+]
+
 (* Read and parse a file, return the expression inside. Automatically
  * handle `.gz`, `.bz2`, and `.mx` files. Fail if no such file exists,
  * or if there is an error reading it. *)
