@@ -18,6 +18,17 @@ FailUnless[FormatScientific[15.5, 4] === "2.e1"];
 FailUnless[FormatScientific[123456, 0] === "1.e5"];
 FailUnless[FormatScientific[0, 6] === "0.00e0"];
 
+FailUnless[FormatFixed[1.23, 2] === "1.23"];
+FailUnless[FormatFixed[123.456, 2] === "123.46"];
+FailUnless[FormatFixed[0.0012, 3] === "0.001"];
+FailUnless[FormatFixed[0.0012, 3] === "0.001"];
+FailUnless[FormatFixed[0.0006, 3] === "0.001"];
+FailUnless[FormatFixed[0.0006, 2] === "0.00"];
+FailUnless[FormatFixed[0, 2] === "0.00"];
+FailUnless[FormatFixed[65.43, 0] === "65"];
+FailUnless[FormatFixed[10^99, 0] === "1" <> StringRepeat["0", 99]];
+FailUnless[FormatFixed[10^99, 99] === "1" <> StringRepeat["0", 99] <> "." <> StringRepeat["0", 99]];
+
 FailUnless[ProbablyZeroQ[0] === True];
 FailUnless[ProbablyZeroQ[x] === False];
 FailUnless[ProbablyZeroQ[(x+1)^2-x^2-2x-1] === True];

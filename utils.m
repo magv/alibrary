@@ -284,6 +284,24 @@ Module[{sign, man, exp, zeros},
   If[zeros > 0, sign <> man <> StringRepeat["0", zeros] <> exp, sign <> man <> exp]
 ]
 FormatScientific[width_Integer] := FormatScientific[#, width]&
+FormatScientific[Complex[re_, im_], width_Integer] :=
+  FormatScientific[re, width] <> " " <> FormatScientific[im, width] <> "j"
+
+(* Format a real number with fixed number of digits after the
+ * decimal point.
+ *)
+FormatFixed[x:(_Integer|_Real), digits_Integer] :=
+  IntegerDigits[x*10^digits//Round] //
+  If[1 + digits - Length[#] > 0, Join[Table[0, 1 + digits - Length[#]], #], #]& //
+  MkString[#[[;;-digits-1]], ".", #[[-digits;;]]]&
+FormatFixed[x:(_Integer|_Real), 0] :=
+  IntegerDigits[x//Round] //
+  If[1 - Length[#] > 0, Join[Table[0, 1 - Length[#]], #], #]& //
+  MkString
+FormatFixed[digits_Integer] := FormatFixed[#, digits]&
+
+FormatFixed[Complex[re_, im_], digits_Integer] :=
+  FormatFixed[re, width] <> " " <> FormatFixed[im, width] <> "j"
 
 (* Format a quantity in a human-readable format using the given
  * units. The units are specified as a list of string names and
