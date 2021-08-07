@@ -59,6 +59,21 @@ FailUnless[
 
 FailUnless[HlogSeries[Hlog[x, {a,b,c}], 3] === (-1)^3/3! x^3/a/b/c + O[x]^4];
 
+FailUnless[
+  FeynmanParametrization[{l^2, (q-l)^2}, {l}, {q^2->q2}, {1, 2}] === {
+    (I*Gamma[3 - d/2])/(2^d*E^((I/2)*d*Pi)*Pi^(d/2)),
+    x1 + x2, 3 - d,
+    q2*x1*x2, -3 + d/2,
+    {x1, x2},
+    x2
+  }
+]
+
+FailUnless[
+  FeynmanParametrization[{l^2, (p-l)^2, (q-l)^2}, {l}, {q^2->q2}, {1, 0, 2}] ===
+  FeynmanParametrization[{l^2, (q-l)^2}, {l}, {q^2->q2}, {1, 2}]
+]
+
 (*
  * ## Tests for [[alibrary.m]]
  *)

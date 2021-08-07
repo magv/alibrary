@@ -1556,13 +1556,34 @@ MemoizedHypExp[eps_, n_] := MemoizedHypExp[#, eps, n]&
 (* ## Feynman Parametrization
  *)
 
-(* Parameterize an integral. Return `{prefactor, U, U power, F,
- * F power, X list}`. *)
+(* Parameterize a loop integral. Return `{prefactor, U, U power,
+ * F, F power, X list, X factor}`. The integral is then
+ * $$prefactor \int {X factor} U^{U power} (F+i0)^{F power} \delta(1 - \sum_i x_i) \prod_i d x_i.$$
+ *
+ * The propagators are assumed to come with a $+i0$ prescription,
+ * and the prefactor will reflect this; loop integration measure
+ * is $d^d l/(2\pi)^d$.
+ *
+ * Example:
+ *   FeynmanParametrization[{l^2, (q-l)^2}, {l}, {q^2->q2}, {1, 2}]
+ *   > {
+ *       (I*Gamma[3 - d/2])/(2^d*E^((I/2)*d*Pi)*Pi^(d/2)),
+ *       x1 + x2,
+ *       3 - d,
+ *       q2*x1*x2,
+ *       -3 + d/2,
+ *       {x1, x2},
+ *       x2
+ *     }
+ *)
 FeynmanParametrization[propagators_List, loopmomenta_List, spmap_] :=
-Module[{pre, num, den, nu, a, b, c, i, l, xlist},
-  xlist = Table[ToExpression["x" <> ToString[i]], {i, Length[propagators]}];
-  den = Sum[propagators[[i]] xlist[[i]], {i, Length[propagators]}] // Expand // ReplaceAll[spmap];
-  nu = Length[propagators];
+  FeynmanParametrization[propagators, loopmomenta, spmap, Table[1, Length[propagators]]]
+FeynmanParametrization[propagators_List, loopmomenta_List, spmap_, indices_List] :=
+Module[{props, idx, pre, num, den, nu, a, b, c, i, l, xlist},
+  {props, idx} = {propagators, indices} // Transpose // DeleteCases[{_, 0}] // Transpose;
+  xlist = Table[ToExpression["x" <> ToString[i]], {i, Length[props]}];
+  den = Sum[props[[i]] xlist[[i]], {i, Length[props]}] // Expand // ReplaceAll[spmap];
+  nu = idx // Apply[Plus];
   pre = Gamma[nu];
   num = 1;
   Do[
@@ -1577,7 +1598,7 @@ Module[{pre, num, den, nu, a, b, c, i, l, xlist},
     nu = nu - d/2;
     ,
     {l, loopmomenta}];
-  {pre,(*U*)num,(*U exp*)nu - d/2,(*F*)den,(*F exp*)-nu, xlist}
+  {pre,(*U*)num,(*U exp*)nu - d/2,(*F*)den,(*F exp*)-nu, xlist, xlist^(idx-1) // Apply[Times]}
 ]
 
 (* Parameterize an integral. Return `{U, F, X list}`. *)
