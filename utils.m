@@ -1599,25 +1599,27 @@ MemoizedHypExp[eps_, n_] := MemoizedHypExp[#, eps, n]&
 (* ## Feynman Parametrization
  *)
 
-(* Parameterize a loop integral. Return `{prefactor, U, U power,
- * F, F power, X list, X factor}`. The integral is then
- * $$prefactor \int {X factor} U^{U power} (F+i0)^{F power} \delta(1 - \sum_i x_i) \prod_i d x_i.$$
+(* Parameterize a loop integral, return {$C$, $U$, $pow_U$, $F$, $pow_F$,
+ * $X$, $F_X$}. The integral is then parameterized as
+ * $$C \int F_X U^{pow_U} (F+i0)^{pow_F} \delta(1-\sum_i x_i) \prod_i d x_i.$$
  *
  * The propagators are assumed to come with a $+i0$ prescription,
  * and the prefactor will reflect this; loop integration measure
- * is $d^d l/(2\pi)^d$.
+ * is $d^d l/(2\pi)^d$. Propagators with zero indices will be
+ * dropped.
  *
  * Example:
- *   FeynmanParametrization[{l^2, (q-l)^2}, {l}, {q^2->q2}, {1, 2}]
- *   > {
- *       (I*Gamma[3 - d/2])/(2^d*E^((I/2)*d*Pi)*Pi^(d/2)),
- *       x1 + x2,
- *       3 - d,
- *       q2*x1*x2,
- *       -3 + d/2,
- *       {x1, x2},
- *       x2
- *     }
+ *
+ *     FeynmanParametrization[{l^2, (q-l)^2}, {l}, {q^2->q2}, {1, 2}]
+ *     > {
+ *         (I*Gamma[3 - d/2])/(2^d*E^((I/2)*d*Pi)*Pi^(d/2)),
+ *         x1 + x2,
+ *         3 - d,
+ *         q2*x1*x2,
+ *         -3 + d/2,
+ *         {x1, x2},
+ *         x2
+ *       }
  *)
 FeynmanParametrization[propagators_List, loopmomenta_List, spmap_] :=
   FeynmanParametrization[propagators, loopmomenta, spmap, Table[1, Length[propagators]]]
