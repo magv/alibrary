@@ -61,6 +61,9 @@ MapIndexed1[f_] := MapIndexed1[f, #]&
 PrintIndexed[ex_List] := (ex // MapIndexed[Print[#2//First, ") ", #1]&]; ex)
 PrintIndexed[ex_] := (Print["?) ", ex]; ex)
 
+(* Return a list of {index, value} pairs. *)
+Enumerate[ex_List] := MapIndexed[{#2//First, #1}&, ex]
+
 (* Find all unique occurrences of pat in ex. *)
 CaseUnion[ex_List, pat_] := ex // Map[CaseUnion[pat]] // Apply[Join] // Union;
 CaseUnion[ex_, pat_] := Cases[ex, pat, {0, Infinity}] // Union
@@ -95,6 +98,12 @@ Only[l_] := Error["Only: a list of exactly one element expected, got: ", l]
  *)
 Second[{_, el_, ___}] := el
 Second[l_] := Error["Second: a list of at least 2 elements expected, got: ", l]
+
+(* Get the third element in a list, fail if the list doesn't
+ * have at least 2 elements.
+ *)
+Third[{_, _, el_, ___}] := el
+Third[l_] := Error["Third: a list of at least 3 elements expected, got: ", l]
 
 (* Replace each unique object matching `oldpattern` in `ex` to one
  * of the objects from `newlist` (which is assumed to contain
@@ -424,6 +433,18 @@ SplitFactors[ex_, pat_] := Module[{f},
 ]
 SplitFactors[pat_] := SplitFactors[#,pat]&
 
+(* Apply `Cases[]` to factors of an expression.
+ *)
+FactorCases[ex_, pat_] := ex // Factors // Cases[pat] // Apply[Times]
+FactorCases[pat_] := FactorCases[#, pat]&
+
+(* Apply `DeleteCases[]` to factors of an expression.
+ *)
+FactorDeleteCases[ex_, pat_] := ex // Factors // DeleteCases[pat] // Apply[Times]
+FactorDeleteCases[pat_] := FactorDeleteCases[#, pat]&
+
+(* Split a matrix into partial fraction.
+ *)
 MxApart[mx_, x_] := Module[{mxa, xxlist, xx},
     mxa = Apart[mx, x] // Expand[#, x]& // Map[Terms, #, {2}]& // Map[SplitFactors[#, x]&, #, {3}]&;
     xxlist = mxa[[;; , ;; , ;; , 2]] // Flatten // Union;
