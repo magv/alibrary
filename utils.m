@@ -39,10 +39,14 @@ MkFile[filename_, items__] := Module[{fd},
  *)
 MaybeMkFile[filename_, items__] := Module[{fd, oldtext, newtext},
   oldtext = Quiet[ReadString[filename], {OpenRead::noopen}];
-  newtext = MkString[items];
-  If[newtext =!= oldtext,
-    MkFile[filename, newtext];
-  ];
+  If[oldtext === $Failed,
+    MkFile[filename, items];
+    ,
+    newtext = MkString[items];
+    If[newtext =!= oldtext,
+      MkFile[filename, newtext];
+    ];
+  ]
 ]
 
 (* Highlight a matching pattern in red. Useful during development
