@@ -293,11 +293,11 @@ FormatScientific[Complex[re_, im_], width_Integer] :=
 FormatFixed[x:(_Integer|_Real), digits_Integer] :=
   IntegerDigits[x*10^digits//Round] //
   If[1 + digits - Length[#] > 0, Join[Table[0, 1 + digits - Length[#]], #], #]& //
-  MkString[#[[;;-digits-1]], ".", #[[-digits;;]]]&
+  MkString[If[x < 0, "-", ""], #[[;;-digits-1]], ".", #[[-digits;;]]]&
 FormatFixed[x:(_Integer|_Real), 0] :=
   IntegerDigits[x//Round] //
   If[1 - Length[#] > 0, Join[Table[0, 1 - Length[#]], #], #]& //
-  MkString
+  MkString[If[x < 0, "-", ""], #]&
 FormatFixed[digits_Integer] := FormatFixed[#, digits]&
 
 FormatFixed[Complex[re_, im_], digits_Integer] :=
