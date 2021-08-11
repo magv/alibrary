@@ -15,8 +15,14 @@
  * First, load the other libraries, [[utils.m]] and [[library.m]].
  *)
 
-Get["utils.m"];
-Get["library.m"];
+If[MatchQ[$InputFileName, s_String /; StringEndsQ[s, "alibrary.m"]],
+  $Apath = FileNameDrop[$InputFileName] /. "" -> ".";
+  ,
+  $Apath = ".";
+]
+
+Get[$Apath <> "/utils.m"];
+Get[$Apath <> "/library.m"];
 
 (*
  * ## Diagrams
@@ -811,7 +817,7 @@ RunThroughForm[exprs_List, code_] :=
   tmplog = tmpsrc // StringReplace[".frm" ~~ EndOfString -> ".log"];
   {toform, fromform} = AmpFormIndexMaps[exprs];
   MkFile[tmpsrc,
-    "#include library.frm\n",
+    "#include ", $Apath, "/library.frm\n",
     (* This whole dance is needed to distribute expressions
      * across workers; tform would keep everything in a single
      * process if we where to just do assign our expression to

@@ -104,9 +104,9 @@ As an example of the common usage, please take a look at:
 Download the source code, put it into a directory somewhere,
 and import it into your Mathematica session like this:
 
-    Get["alibrary.m"];
+    Get["/path/to/alibrary.m"];
 
 Alternatively, to only import generic Mathematica functions
 (those that are not related to loop amplitudes), use this:
 
-    Get["utils.m"];
+    Get["/path/to/utils.m"];
