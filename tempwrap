@@ -7,14 +7,15 @@
 # Such a wrapper is useful to force all temporary files of a
 # command to reside on a fast local disk.
 
+import fnmatch
 import getopt
 import glob
-import subprocess
-import sys
-import fnmatch
 import os
 import re
+import subprocess
+import sys
 import tempfile
+import time
 
 def usage():
     print("usage: tempwrap [-i pattern] [-o pattern] [-e sed-arg] ... fromdir todir -- command [arg ...]")
@@ -78,8 +79,16 @@ def copytree(srcdir, dstdir, patterns, sed_args):
                 print("* copy", repr(relpath))
                 copy(fullpath, os.path.join(dstdir, relpath), sed_args)
 
+t0 = time.time()
 with tempfile.TemporaryDirectory(prefix="wrap-") as tmpdir:
     copytree(srcdir, tmpdir, i_patterns, sed_args)
     print("* run", *command)
+    sys.stdout.flush()
+    t1 = time.time()
     subprocess.check_call(command, cwd=tmpdir)
+    t2 = time.time()
     copytree(tmpdir, dstdir, o_patterns, [])
+t3 = time.time()
+print(f"* copy in time: {t1-t0:.4g}s")
+print(f"* copy out time: {t3-t2:.4g}s")
+print(f"* run time: {t2-t1:.4g}s")
