@@ -154,7 +154,7 @@ unitTrace 4;
             gammatrace(?x1, gamma(lorax`i'a), gamma(lorax`i'b), gamma(lorax`i'c), ?x2);
     #enddo
     argument gammatrace;
-        #do i=1,`EXTRASYMBOLS_'
+        #do i = 1,`EXTRASYMBOLS_'
             id slash(`i') = tmpv`i';
         #enddo
         id gamma(lor?) = lor;
@@ -345,7 +345,7 @@ unitTrace 4;
 * dot(...), which is what is expected everywhere else.
     id p1?.p1? = sp(p1);
     id p1?.p2? = sp(p1, p2);
-    id BID = 1;
+    id BID^x? = 1;
     bracket UNIQTAG;
     #call sort(toB-convert-uniq-dots)
 
@@ -365,7 +365,7 @@ unitTrace 4;
     #if ( `ndens' > 0 )
     id BID^x0? * <DEN1^x1?> * ... * <DEN`ndens'^x`ndens'?> = B(x0, <x1>, ..., <x`ndens'>);
     #else
-    id BID = 1;
+    id BID^x? = 1;
     #endif
 #call end(toB)
 #endprocedure
