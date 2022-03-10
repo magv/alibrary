@@ -52,7 +52,7 @@ def copy(srcpath, dstpath, sed_args):
             else:
                 subprocess.check_call(["sed", *sed_args, srcpath], stdout=f)
     else:
-        subprocess.check_call(["cp", "-a", srcpath, dstpath])
+        subprocess.check_call(["cp", "-aL", srcpath, dstpath])
 
 def copytree(srcdir, dstdir, patterns, sed_args):
     print("* copy from", repr(srcdir), "into", repr(dstdir))
