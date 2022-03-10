@@ -1036,7 +1036,9 @@ FormCallToB[bases_List] := MkString[
  * and the lexicographic orders match, which will prevent Kira
  * from messing it up.
  *)
-KiraBasisName[bid_] := MkString["b", IntegerDigits[bid, 10, 5]]
+KiraBasisName[bid_Integer] := MkString["b", IntegerDigits[bid, 10, 5]]
+KiraBasisName[name_String] := name
+KiraBasisName[DimShift[name_, n_]] := MkString[KiraBasisName[name], "_dimshift", n]
 
 (* Create Kira’s `kinematics.yaml` config file.
  *)
@@ -1195,9 +1197,9 @@ Module[{bid, sector, r, s},
   ];
 ]
 
-(* Create Kira’s integral list file.
+(* Create Kira’s integral list files, one per basis.
  *)
-MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
+MkKiraIntegrals[dirname_, blist_] := Module[{bid, idxlist},
   Do[
     idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
     MaybeMkFile[dirname <> "/" <> KiraBasisName[bid] <> ".integrals",
@@ -1206,6 +1208,15 @@ MkKiraIntegrals[dirname_, blist_] := Module[{bid, idlist},
     ,
     {bid, blist // CaseUnion[B[bid_, ___] :> bid]}];
 ]
+
+(* Create Kira’s integral list file.
+ *)
+MkKiraIntegralList[filename_, blist_] :=
+  MaybeMkFile[filename,
+    blist //
+      CaseUnion[B[bid_, idx__] :> {bid, {idx}}] //
+      Map[Apply[{KiraBasisName[#1], "[", Riffle[#2, ","], "]\n"}&]]
+  ]
 
 (* R = denominator power sum
  * Dots = denominator dot count
