@@ -1254,20 +1254,20 @@ BToSectorPattern[bs_List] := bs // Map[BToSectorPattern] // Apply[Alternatives]
  * specified by the lists of their indices.
  *)
 TopSectors[idxlist_List] :=
-Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r, s, d, sectors, done, i, ss},
-  tops = idxlist // Map[IndicesToS] // Max[#, 1]&;
+Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d, o, sectors, done, i, ss},
   sector2i = <||>;
   sector2r = <||>;
   sector2s = <||>;
   sector2d = <||>;
-  s2sectors = Association @@ Table[s -> {}, {s, 0, tops}];
+  o2sectors = <||>;
   Do[
       sector = IndicesToSectorId[int];
       sector2i[sector] = SectorIdToIndices[sector, Length[int]];
       r = IndicesToR[int];
       s = IndicesToS[int];
       d = IndicesToDots[int];
-      AppendTo[s2sectors[s], sector];
+      o = {s, r};
+      o2sectors[o] = {o2sectors[o] /. _Missing -> {}, sector};
       sector2r[sector] = Max[r, sector2r[sector] /. _Missing -> 0];
       sector2d[sector] = Max[d, sector2d[sector] /. _Missing -> 0];
       (* Note: s=0 makes Kira produce false masters. It’s not
@@ -1279,39 +1279,51 @@ Module[{tops, sector2i, sector2r, sector2s, sector2d, s2sectors, int, sector, r,
       ,
       {int, idxlist}
   ];
-  Print["* Sectors by numerator power sum (s)"];
+  (*Print["* Sectors by order (s + r)"];*)
   sectors = {};
   done = {};
-  For[s = tops, s >= 0, s--,
-      s2sectors[s] = s2sectors[s] // Union // Reverse;
+  Do[
       Do[
           If[MemberQ[done, sector], Continue[]];
           i = FirstPosition[done, ss_ /; (BitAnd[ss, sector] === sector)];
           If[MatchQ[i, _Missing],
               AppendTo[done, sector];
               AppendTo[sectors, sector];
-              Print["Unique sector: ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
+              (*Print["Unique sector: ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector], " (o=", o, ")"];*)
               ,
               i = i[[1]];
-              Print["Subsector of ", done[[i]], ": ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
+              (*Print["Subsector of ", done[[i]], ": ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];*)
               sector2r[done[[i]]] = Max[sector2r[sector], sector2r[done[[i]]]];
               sector2d[done[[i]]] = Max[sector2d[sector], sector2d[done[[i]]]];
               sector2s[done[[i]]] = Max[sector2s[sector], sector2s[done[[i]]]];
               ];
           ,
-          {sector, s2sectors[s]}
+          {sector, o2sectors[o] // Flatten // Union // Reverse}
       ];
+      ,
+      {o, o2sectors // Keys // Sort // Reverse}
   ];
+  (*
   Print["Final sectors:"];
   Do[
     Print["- ", sector, " ", IntegerDigits[sector, 2, Length[First[idxlist]]]//Reverse, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
     ,
     {sector, sectors}];
+  *)
   Table[
     <|"id" -> sector, "idx" -> sector2i[sector], "r" -> sector2r[sector], "s" -> sector2s[sector], "d" -> sector2d[sector]|>
     ,
-    {sector, sectors}]
+    {sector, sectors}] //
+    Sort
 ]
+
+(* Return an association from basis ids to top sector lists as
+ * given by [[TopSectors]]. *)
+TopSectorMap[blist_] :=
+  blist //
+  GroupBy[Replace[B[bid_, ___] :> bid]] //
+  Map[(#[[;;,2;;]])& /* Map[Apply[List]] /* TopSectors]
+
 
 (* Return a list of sectors that represent a union of the given
  * ones. In other words, drop the subsectors.
