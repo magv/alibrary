@@ -227,70 +227,149 @@ DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
   result // First
 ]
 
-(* Convert a diagram into badly layed out TikZ, with the intention
- * to let the user to manually edit the TikZ source afterwards
- * using e.g. [TikZiT].
+(*
+ * Take a graph defined by edges (pairs of nodes) and produce
+ * coordinates for all vertices by calling Graphviz (sfpd).
  *
- * [tikzit]: https://tikzit.github.io/
+ * Example:
+ *
+ *     In[]:= GraphLayoutVertexCoordinates[{{1,2},{1,3},{2,3}}]
+ *     Out[]= {1 -> {272.32, 243.6},
+ *             2 -> {27, 214.2},
+ *             3 -> {175.3, 18}}
  *)
-DiagramToTikZ[Diagram[id_, _, i_List, o_List, p_List, v_List]] := Module[{es, ni, no, scale},
-  es = {
-    "q"|"u"|"d"|"c"|"s"|"t"|"b"|"x"|"y" -> "fermion",
-    "W"|"A" -> "photon",
-    "g" -> "gluon",
-    "h" -> "scalar",
-    "c" -> "ghost",
-    _ -> "edge"
-  };
-  ni = Length[i];
-  no = Length[o];
-  scale = Max[ni,no,4];
-  MkString[
-    "\\begin{tikzpicture}\n",
-    "\t\\begin{pgfonlayer}{nodelayer}\n",
-    i /. F[f_, fi_, vi_, mom_] :> {"\t\t\\node [style=blank] (", fi, ") at (0, ", scale(-1-fi)/(2 ni)//Round, ") {$", f, "(", mom, ")$};\n"},
-    o /. F[f_, fi_, vi_, mom_] :> {"\t\t\\node [style=blank] (", fi, ") at (", scale, ", ", scale(-2-fi)/(2 no)//Round, ") {$", f, "(", mom, ")$};\n"},
-    v /. V[vi_, __] :> {"\t\t\\node [style=dot] (", vi, ") at (", 1+Random[]*(scale-2)//Round, ", ", 1+Random[]*(scale-2)//Round, ") {};\n"},
-    "\t\\end{pgfonlayer}\n",
-    "\t\\begin{pgfonlayer}{edgelayer}\n",
-    i /. F[f_, fi_, vi_, mom_] :> {"\t\t\\draw [style=incoming edge] (", fi, ") to (", vi, ");\n"},
-    o /. F[f_, fi_, vi_, mom_] :> {"\t\t\\draw [style=outgoing edge] (", vi, ") to (", fi, ");\n"},
-    p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {"\t\t\\draw [style=", f /. es, "] (", vi1, ") to (", vi2, ");\n"},
-    "\t\\end{pgfonlayer}\n",
-    "\\end{tikzpicture}\n"
-  ]
+GraphLayoutVertexCoordinates[edges:{{_,_} ...}] :=
+Module[{tmp, out, result, VertexToName, NameToVertex, nameidx},
+  tmp = MkTemp["graph", ".gv"];
+  out = tmp <> ".json";
+  nameidx = 0;
+  VertexToName[v_] := VertexToName[v] = (
+    NameToVertex[ToString[nameidx]] = v;
+    ToString[nameidx++]
+  );
+  MkFile[tmp,
+    "graph {\n",
+    edges // MapReplace[
+      {a_, b_} :> {" ", VertexToName[a], " -- ", VertexToName[b], ";\n"}
+    ],
+    "}\n"
+  ];
+  Run["cat " <> tmp];
+  Run["sfdp -Tjson -o", out, tmp];
+  result = Import[out];
+  DeleteFile[{tmp, out}];
+  "objects" /. result //
+    Map[
+      NameToVertex["name" /. #] -> ToExpression[MkString["{", "pos" /. #, "}"]]&
+    ]
+]
+
+(* Scale and rotate the coordinates (in the format returned
+ * by [[GraphLayoutVertexCoordinates]]) so that the `left`
+ * vertices end up on the left, the `right` on the right, and
+ * the distance between them is `scale`.
+ *)
+NormalizeCoordinates[coordmap_, left_List, right_List, scale_] :=
+Module[{l, r, angle, rotationmx, coordmap3, scalefactor},
+  FailUnless[AllTrue[left, KeyExistsQ[coordmap, #]&]];
+  FailUnless[AllTrue[right, KeyExistsQ[coordmap, #]&]];
+  l = left /. coordmap // Mean;
+  r = right /. coordmap // Mean;
+  angle = r - l // Apply[ArcTan] // N;
+  rotationmx = {{Cos[angle], Sin[angle]}, {-Sin[angle], Cos[angle]}};
+  coordmap2 = coordmap // Association // Map[rotationmx.(# - l)&];
+  l = left /. coordmap2 // Map[First] // Min;
+  r = right /. coordmap2 // Map[First] // Max;
+  scalefactor = scale/{r-l, Max[coordmap2[[;;,2]]] - Min[coordmap2[[;;,2]]]} // N;
+  coordmap2 //
+    Map[scalefactor (# - {(l+r)/2, 0})&] //
+    Normal
 ]
 
 (* ## TikZ interface for diagrams
  *)
 
-(*
-Take a graph defined by edges (pairs of nodes) and produce
-coordinates for all vertices by calling Graphviz (sfpd).
-
-Example:
-
-    In[]:= GraphLayoutVertexCoordinates[{{1,2},{1,3},{2,3}}]
-    Out[]= {1 -> {272.32, 243.6},
-            2 -> {27, 214.2},
-            3 -> {175.3, 18}}
-*)
-GraphLayoutVertexCoordinates[edges:{{_,_} ...}] := Module[{tmp, out, result},
-  tmp = MkTemp["graph", ".gv"];
-  out = tmp <> ".json";
-  MkFile[tmp,
-    "graph {\n",
-    edges // Map[Apply[List]] // MapReplace[
-      {a_, b_} /; MemberQ[legs, a|b] :> {" ", a, " -- ", b, " [len=0.2];\n"},
-      {a_, b_} :> {" ", a, " -- ", b, ";\n"}
+(* Convert a diagram into TikZ, somewhat badly. It is expected
+ * that the user will manually edit the TikZ source afterwards
+ * using e.g. [TikZiT].
+ *
+ * [tikzit]: https://tikzit.github.io/
+ *)
+DiagramToTikZ[Diagram[id_, _, i_List, o_List, p_List, v_List], OptionsPattern[]] :=
+Module[{stylemap, pstyles, ni, no, coords, scale, external},
+  stylemap = {
+    "q"|"u"|"d"|"c"|"s"|"b"|"x"|"y" -> "edge",
+    "t"|"T" -> "top",
+    "H" -> "higgs",
+    "g" -> "gluon",
+    "h" -> "scalar",
+    "c" -> "ghost",
+    _ -> "edge"
+  };
+  pstyles = OptionValue[PropagatorStyles] //
+    If[# =!= None, #, p /. P[f_, ___] :> (f /. stylemap)]&;
+  FailUnless[Length[p] === Length[pstyles]];
+  ni = Length[i];
+  no = Length[o];
+  scale = Max[ni,no,4];
+  scale = {2.0,1.5};
+  external = Join[
+      i /. F[f_, fi_, vi_, mom_] :> Rule[fi, scale {-1/2 - 1/2/scale[[1]], If[ni<=1,0,(fi+1)/2/(ni-1)+1/2]} // N],
+      o /. F[f_, fi_, vi_, mom_] :> Rule[fi, scale {+1/2 + 1/2/scale[[1]], If[no<=1,0,(fi+2)/2/(no-1)+1/2]} // N]
+  ] // Association;
+  coords = Graph[
+      v /. V[vi_, __] :> vi,
+      p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> vi1 <-> vi2
+    ] //
+    GraphEmbedding[#, "SpringEmbedding"]& //
+    MapThread[Rule, {v /. V[vi_, __] :> vi, #}]& //
+    NormalizeCoordinates[#,
+      i /. F[f_, fi_, vi_, mom_] :> vi,
+      o /. F[f_, fi_, vi_, mom_] :> vi,
+      scale]& //
+    Association //
+    If[
+      Plus@@(Join[i, o] /. F[f_, fi_, vi_, mom_] :> EuclideanDistance[#[vi]*{1,+1}, external[fi]]^2) >
+      Plus@@(Join[i, o] /. F[f_, fi_, vi_, mom_] :> EuclideanDistance[#[vi]*{1,-1}, external[fi]]^2),
+      #*{1,+1},
+      #*{1,-1}
+    ]& //
+    Join[external, #]&;
+  MkString[
+    "\\begin{tikzpicture}\n",
+    "\t\\begin{pgfonlayer}{nodelayer}\n",
+    i /. F[f_, fi_, vi_, mom_] :> {
+      "\t\t\\node [style=none] (", fi, ") at (",
+        coords[fi] // Round[#, 0.25]& // Map[FormatFixed[2]] // Riffle[#, ","]&,
+      ") {};\n"
+    },
+    o /. F[f_, fi_, vi_, mom_] :> {
+      "\t\t\\node [style=none] (", fi, ") at (",
+        coords[fi] // Round[#, 0.25]& // Map[FormatFixed[2]] // Riffle[#, ","]&,
+      ") {};\n"
+    },
+    v /. V[vi_, __] :> {
+      "\t\t\\node [style=dot] (", vi, ") at (", 
+        coords[vi] // Round[#, 0.25]& // Map[FormatFixed[2]] // Riffle[#, ","]&,
+      ") {};\n"
+    },
+    "\t\\end{pgfonlayer}\n",
+    "\t\\begin{pgfonlayer}{edgelayer}\n",
+    i /. F[f_, fi_, vi_, mom_] :> {
+      "\t\t\\draw [style=incoming ", f /. stylemap, "] (", fi, ") to (", vi, ");\n"
+    },
+    o /. F[f_, fi_, vi_, mom_] :> {
+      "\t\t\\draw [style=outgoing ", f /. stylemap, "] (", vi, ") to (", fi, ");\n"
+    },
+    {p, pstyles} // Transpose // MapReplace[
+      {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], s_} :>
+        {"\t\t\\draw [style=", s, "] (", vi1, ") to (", vi2, ");\n"}
     ],
-    "}\n"
-  ];
-  Run["sfdp -Tjson -o", out, tmp];
-  result = Import[out];
-  DeleteFile[{tmp, out}];
-  "objects" /. result // Map[("name" /. #) -> (MkString["{", "pos" /. #, "}"] // ToExpression) &]
+    "\t\\end{pgfonlayer}\n",
+    "\\end{tikzpicture}\n"
+  ]
 ]
+Options[DiagramToTikZ] = {PropagatorStyles -> None};
 
 (* Create a TikZ graph file from the given edges and labels.
  *)
