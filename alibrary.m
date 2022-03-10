@@ -703,8 +703,8 @@ IBPBasisSameQ[b1_, b2_] := Sort[Normal[b1]] === Sort[Normal[b2]]
  * ## Feynson interface for integral symmetries
  *)
 
-(* By default look for Feynson in the current directory. *)
-If[Not[MatchQ[$Feynson, _String]], $Feynson = "./feynson -q -j4"; ];
+(* By default look for Feynson in PATH. *)
+If[Not[MatchQ[$Feynson, _String]], $Feynson = "feynson -q -j4"; ];
 
 (* Calculate the zero sectors of a given basis. Return a list,
  * each element being `B[basis-id, (1|0), ...]`, listing the topmost
