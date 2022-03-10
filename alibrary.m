@@ -474,6 +474,18 @@ ExpandScalarProducts[mompattern_] := ReplaceAll[sp[a_, b_] :> (
   }]
 )]
 
+(* Convert B notation back to a product of `den`.
+ *)
+BToDen[ex_, bases_List] := Module[{bid2basis},
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
+  ex /.
+    B[bid_, idx__] :> (bid2basis[bid]["denominators"]^{idx} // Apply[Times]) /.
+    den[p_]^n_?Negative :> sp[p, p]^(-n) /.
+    den[p_, m_]^n_?Negative :> (sp[p, p] - m)^(-n) /.
+    den[p_, m_, irr]^n_?Negative :> (sp[p, p] - m)^(-n)
+]
+BToDen[bases_List] := BToDen[#, bases] &
+
 (* Convert an expression with `sp` and `den` to `B` notation in
  * a given basis. This is the slow version of it; the faster one
  * uses FORM: see [[RunThroughForm]] and [[FormCallToB]].
