@@ -1230,11 +1230,21 @@ IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
 IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
 IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
 
+(* Convert an integral in B notation into the corner integral of
+ * the corresponding sector (i.e. normalize all indices to 1 or 0.
+ *)
 BToSector[B[bid_, idx___]] :=
   B[bid, {idx} // MapReplace[{ n_ /; n <= 0 -> 0, _ -> 1}] // Apply[Sequence]]
 
+BToSector[DimShift[b_B, _]] := BToSector[b]
+
+(* Convert an integral in B notation into a pattern matching the
+ * corresponding sector.
+ *)
 BToSectorPattern[B[bid_, idx___]] :=
   B[bid, {idx} // MapReplace[{ n_ /; n <= 0 -> _?NonPositive, _ -> _?Positive}] // Apply[Sequence]]
+
+BToSectorPattern[DimShift[b_B, _]] := BToSectorPattern[b]
 
 BToSectorPattern[bs_List] := bs // Map[BToSectorPattern] // Apply[Alternatives]
 
