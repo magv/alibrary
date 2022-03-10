@@ -1455,11 +1455,126 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
       "./ -i 'b*integrals' -i 'input_kira/*' -i 'pref*' -i 'finish-uds.yaml' ",
       "./ -o 'results/b*' -o '*.log' ",
       "$$(cat sed-arguments) ",
-      "-- $${KIRA:-kira} finish-uds.yaml --parallel=${THREADS}\n",
+      "-- $${KIRA:-kira} finish-uds.yaml --parallel=${THREADS} --bunch_size=8 >$@.log 2>&1\n",
     "\tdate >$@\n"
   ];
 ]
 Options[MkKiraConfig] = {PreferredMasters -> {}, ReplaceByOne -> None};
+
+KiraAmplitudeTag[n_, nprops_] := IntegerDigits[n, 2, nprops] // Reverse // Apply[amplitude]
+
+(* Create Kira’s configuration directory for reduction of
+ * the given integrals under the given bases.
+ *)
+MkKiraConfigUDS[dirname_, bases_List, blist_, OptionsPattern[]] :=
+Module[{bid, bids, bid2topsector, idxlist, massdims, sector, nprops, r, s},
+  EnsureDirectory[dirname];
+  EnsureDirectory[dirname <> "/config"];
+  bids = blist // CaseUnion[B[bid_, ___] :> bid];
+  bid2topsectors = Table[
+    idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
+    bid -> (idxlist // TopSectors // Sort)
+    ,
+    {bid, bids}] // Association;
+  massdims = {
+      bases[[;;, "sprules", ;;, 2]],
+      bases[[;;, "denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
+    } //
+    Flatten //
+    DeleteCases[0] //
+    VariableDimensions[#, 2]&;
+  FailUnless[Sort[massdims[[;;,1]]] === Sort[bases[[1, "invariants"]]]];
+  massdims = bases[[1, "invariants"]] // Map[(# -> (# /. massdims))&];
+  MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
+    bases[[1,"externalmom"]], bases[[1,"sprules"]], massdims, OptionValue[ReplaceByOne]];
+  MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml",(* bases];*)
+    bases // Select[MemberQ[bids, #["id"]]&]];
+(*
+jobs:
+ - reduce_sectors:
+    reduce:
+     - {r: 7, s: 2}
+    weight_notation: false
+    generate_input: { level: 0}
+*)
+  MaybeMkFile[dirname <> "/prepare.yaml",
+    "jobs:\n",
+    " - reduce_sectors:\n",
+    "    reduce:\n",
+    Table[
+        r = Max[sector["r"], 1 + Plus@@sector["idx"]];
+        s = Max[sector["s"], 1];
+        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", r, ", s: ", s, "}\n"}
+        ,
+        {bid, bids},
+        {sector, bid2topsectors[bid]}],
+    "    generate_input: {level: 0}\n",
+    "    weight_notation: false\n"
+  ];
+  nprops = Length[bases[[1,"denominators"]]];
+  MkKiraEquations[dirname <> "/expressions",
+    blist // MapIndexed1[#1-KiraAmplitudeTag[#2, nprops]&]];
+  MaybeMkFile[dirname <> "/weights",
+    Table[{KiraAmplitudeTag[i, nprops] // ToString // StringReplace[" "->""], "\n"}, {i, Length[blist]}]];
+  MaybeMkFile[dirname <> "/solve.yaml",
+    "jobs:\n",
+    " - reduce_user_defined_system:\n",
+    "    input_system:\n",
+    "     config: false\n",
+    "     otf: true\n",
+    "     files:\n",
+    "      - \"expressions\"\n",
+    Table[
+      {"      - \"input_kira/", KiraBasisName[bid], "\"\n"},
+      {bid, bids}],
+    "    select_integrals:\n",
+    "     select_mandatory_list:\n",
+    "      - [\"weights\"]\n",
+    "#    iterative_reduction: masterwise\n",
+    "    preferred_masters: \"preferred-masters\"\n",
+    "    run_initiate: true\n",
+    "#    run_triangular: true\n",
+    "#    run_back_substitution: true\n",
+    "    run_firefly: true\n",
+    " - kira2math:\n",
+    "    target:\n",
+    "      - [\"weights\"]\n"
+  ];
+  MkKiraEquations[dirname <> "/preferred-masters", 
+    OptionValue[PreferredMasters] // Select[NotFreeQ[B[Alternatives @@ bids, ___]]]];
+  MaybeMkFile[dirname <> "/Makefile",
+    "THREADS?= 1\n",
+    "RUN ?=\n",
+    "\n",
+    "prepare.done: ",
+      "prepare.yaml ",
+      "preferred-masters ",
+      "config/integralfamilies.yaml ",
+      "config/kinematics.yaml\n",
+    "\trm -rf input_kira/ results/\n",
+    "\t${RUN} tempwrap ",
+      "./ -i '*yaml' -i 'pref*' ",
+      "./ -o 'input_kira/*' -o '*.log' -o '*id2int' ",
+      "-- $${KIRA:-kira} prepare.yaml --parallel=${THREADS} --bunch_size=8\n",
+    "\tdate >$@\n",
+    "\n",
+    "solve.done: ",
+      "sed-arguments ",
+      "prepare.done ",
+      "solve.yaml ",
+      "weights ",
+      "\n",
+    "\t${RUN} tempwrap ",
+      "./ -i '*yaml' -i expressions -i weights -i 'pref*' -i 'input_kira/*' ",
+      "./ -o 'results/*' -o '*.log' ",
+      "$$(cat sed-arguments) ",
+      "-- $${KIRA:-kira} solve.yaml --parallel=${THREADS} --bunch_size=8\n",
+    "\tdate >$@\n"
+  ];
+  MaybeMkFile[dirname <> "/sed-arguments", ""];
+]
+Options[MkKiraConfigUDS] = {PreferredMasters -> {}, ReplaceByOne -> None};
+
 
 (* Populate a directory with Kira subdirectories for each basis, and
  * write a Makefile that runs Kira for each of them. With this done,
