@@ -1338,21 +1338,37 @@ SectorUnion[sectors_List] := Module[{},
  * The masters themselves can be both single integrals
  * in the `B` notation, or linear combinations of them.
  *)
-MkKiraEquations[filename_String, masters_List] :=
+MkKiraEquations[filename_String, masters:{(_B|_DimShift|_amplitude) ...}] :=
 Module[{COEF},
   MaybeMkFile[filename,
     masters //
-      Bracket[#, _B, Factor /* COEF]& //
       MapReplace[{
-        B[bid_, idx__]*COEF[1] :>
+        B[bid_, idx___] :>
           {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]\n"},
-        B[bid_, idx__]*COEF[co_] :>
-          {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
-        HoldPattern[Plus[sum__]] :> ({sum} // MapReplace[
-            B[bid_, idx__]*COEF[co_] :>
-              {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"}
-          ])
-      }] //
+        DimShift[B[bid_, idx___], n_] :>
+          {KiraBasisName[bid], "_dimshift", n, "[", Riffle[{idx}, ","], "]\n"},
+        amplitude[idx___] :>
+          {"amplitude[", Riffle[{idx}, ","], "]\n"}
+      }]
+  ]
+]
+
+MkKiraEquations[filename_String, expressions_List] :=
+Module[{COEF},
+  MaybeMkFile[filename,
+    expressions //
+      Bracket[#, _B|_DimShift|_amplitude, Factor /* COEF]& //
+      Map[
+        Terms /*
+        MapReplace[{
+            B[bid_, idx___]*COEF[co_] :>
+              {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
+            DimShift[B[bid_, idx___], n_]*COEF[co_] :>
+              {KiraBasisName[bid], "_dimshift", n, "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
+            amplitude[idx___]*COEF[co_] :>
+              {"amplitude[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"}
+          }]
+      ] //
         Riffle[#, "\n"]&
   ]
 ]
