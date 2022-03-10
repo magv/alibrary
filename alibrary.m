@@ -698,6 +698,18 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
     DeleteCases[x_ -> x_]
 ]
 
+(* Return a map from the invariants of a basis to their mass
+ * dimensions. *)
+IBPBasisMassDimensions[basis_Association] :=
+  {
+    basis[["sprules", ;;, 2]],
+    basis[["denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
+  } //
+  Flatten //
+  DeleteCases[0] //
+  VariableDimensions[#, 2]&
+
+
 (* Return a copy of the basis, but with external momenta swapped
  * inside the denominator list. No change otherwise, i.e. the
  * external scalar product rules remain the same. *)
