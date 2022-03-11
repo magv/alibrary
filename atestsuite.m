@@ -25,9 +25,9 @@ FailUnless[FormatFixed[0.0012, 3] === "0.001"];
 FailUnless[FormatFixed[0.0006, 3] === "0.001"];
 FailUnless[FormatFixed[0.0006, 2] === "0.00"];
 FailUnless[FormatFixed[0, 2] === "0.00"];
-FailUnless[FormatFixed[-65.43, 0] === "-65"];
+FailUnless[FormatFixed[65.43, 0] === "65"];
 FailUnless[FormatFixed[10^99, 0] === "1" <> StringRepeat["0", 99]];
-FailUnless[FormatFixed[1, 99] === "1." <> StringRepeat["0", 99]];
+FailUnless[FormatFixed[10^99, 99] === "1" <> StringRepeat["0", 99] <> "." <> StringRepeat["0", 99]];
 
 FailUnless[ProbablyZeroQ[0] === True];
 FailUnless[ProbablyZeroQ[x] === False];
@@ -94,6 +94,16 @@ FailUnless[
   ExpandScalarProducts[x|y|z|q][sp[x+y, x-y]] === sp[x,x] - sp[y,y],
   ExpandScalarProducts[x|y|z|q][sp[a x + b y, c x]] === a c sp[x,x] + b c sp[x,y]
 ]
+
+FailUnless[TopSectors[{{-1,-6,1}, {-3,1,1}}] === {
+  <|"id" -> 4, "idx" -> {0, 0, 1}, "r" -> 1, "s" -> 7, "d" -> 0|>,
+  <|"id" -> 6, "idx" -> {0, 1, 1}, "r" -> 2, "s" -> 3, "d" -> 0|>
+}];
+
+FailUnless[TopSectors[{{1,1,1}, {0,2,1}, {3,1,0}}] === {
+  <|"id" -> 3, "idx" -> {1, 1, 0}, "r" -> 4, "s" -> 0, "d" -> 2|>,
+  <|"id" -> 7, "idx" -> {1, 1, 1}, "r" -> 3, "s" -> 0, "d" -> 1|>
+}];
 
 Module[{basis, cbasis1, cbasis2},
   basis = CompleteIBPBasis[1,
