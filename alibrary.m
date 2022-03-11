@@ -1683,7 +1683,7 @@ Module[{exx, idx, bids, bid, ibpmapfiles, bvar, table, bmap},
     Print["Masters: "];
     BMapMasters[bmap] // Map[Print["- ", #]&];
     *)
-    Print["* Applying the IBP tables for basis ", bid];
+    Print["* Applying the IBP tables for basis ", bid, "; expression size ", exx//ByteCount//FormatBytes];
     (*
     table = {};
     exx = exx // BMapApply[bmap] // TM;
@@ -1727,9 +1727,9 @@ KiraApplyResultsInBulk[confdir_String, bases_List] := KiraApplyResultsInBulk[#, 
  *)
 LoadKiraMap[filename_] := Module[{table},
   FailUnless[FileExistsQ[filename]];
-  table = RunThrough["sed 's/b0*\\([0-9]*\\)\\[/B[\\1,/g' '" <> filename <> "'", ""];
+  table = RunThrough["sed -E -e 's/b0*([0-9]+)_dimshift([0-9]+)\\[/B[DimShift[\\1,\\2],/g' -e 's/b0*([0-9]*)\\[/B[\\1,/g' '" <> filename <> "'", ""];
   FailUnless[MatchQ[table, _List]];
-  table
+  table /. B[DimShift[bid_, n_], idx___] :> DimShift[B[bid, idx], n]
 ]
 LoadKiraMap[filenames_List] := filenames // Map[LoadKiraMap] // Apply[Join]
 
@@ -1743,8 +1743,11 @@ KiraMasterIntegrals[confdir_String] :=
     Map[
       StringReplace["[" -> ","] /*
       StringReplace["]" ~~ ___ -> "]"] /*
+      StringReplace["b" ~~ x:(DigitCharacter ...) ~~ "_dimshift" ~~ n:(DigitCharacter ...) :>
+        "B[DimShift[" <> x <> "," <> n <>"]"] /*
       StringReplace["b" -> "B["] /*
-      ToExpression
+      ToExpression /*
+      ReplaceAll[B[DimShift[bid_, n_], idx___] :> DimShift[B[bid, idx], n]]
     ]
   ] //
   Apply[Join] //
