@@ -30,6 +30,24 @@ MkFile[filename_, items__] := Module[{fd},
   Close[fd];
 ]
 
+(* Persist results of some slow computation in a file: if a
+ * given filename exists, return its content (via [[SafeGet]]),
+ * otherwise recompute the expression, save its value to the
+ * file, and return it.
+ *)
+Cached[filename_, ex_] := Module[{value},
+  If[FileExistsQ[filename],
+    Print["Loading ", filename];
+    SafeGet[filename]
+    ,
+    Print["Overwriting ", filename];
+    value = ex;
+    SafePut[value, filename];
+    value
+  ]
+]
+Attributes[Cached] = {HoldRest};
+
 (* Convert the items into a string and write it into the file, unless
  * that file already exists and has presisely the same content already.
  *
@@ -178,6 +196,24 @@ MapFactors[f_, ex_List] := Map[MapFactors[f], ex]
 MapFactors[f_, ex_] := f[ex]
 MapFactors[f_] := MapFactors[f, #]&
 
+(* Expand inside each factor of an expression, and take out the
+ * overall monomial prefactors. Faster than the full Factor.
+ *)
+FactorMonomials[ex_List] := Map[FactorMonomials, ex]
+FactorMonomials[ex_Times] := Map[FactorMonomials, ex]
+FactorMonomials[ex_^n_] := FactorMonomials[ex]^n
+FactorMonomials[ex_] := Module[{gcd, terms},
+  terms = ex // Expand // Terms;
+  If[Length[terms] === 0,
+   0
+   ,
+   gcd = terms[[1]];
+   terms[[2 ;;]] // Map[(gcd = PolynomialGCD[#, gcd];) &];
+   terms // Map[#/gcd &] // Apply[Plus] // #*gcd &
+   ]
+  ]
+
+
 (* Return True if an expression is a zero matrix, or a zero
  * SparseMatrix. Return False otherwise. *)
 ZeroMatrixQ[mx_SparseArray] := Length[mx["NonzeroPositions"]] === 0
@@ -303,6 +339,10 @@ FormatFixed[digits_Integer] := FormatFixed[#, digits]&
 FormatFixed[Complex[re_, im_], digits_Integer] :=
   FormatFixed[re, width] <> " " <> FormatFixed[im, width] <> "j"
 
+(* Convert a string in scientific notation (e.g. `1.23e4`) to a
+ * number. *)
+StringToNumber[s_String] := Internal`StringToDouble[s]
+
 (* Format a quantity in a human-readable format using the given
  * units. The units are specified as a list of string names and
  * numeric values.
@@ -365,6 +405,10 @@ Pretty[a_ -> b_, indent1_, indent2_] := {
   Pretty[b, indent2 <> "  ", indent2 <> "  "]
 }
 Pretty[ex_, indent1_, indent2_] := { indent1, ex // InputForm }
+
+(* Put a given expression into a file, use [[Pretty]] to format it.
+ *)
+PrettyPut[expr_, filename_String] := MkFile[filename, expr // Pretty]
 
 (* Extract the list of leaf elements, map them with the given
  * function, and put them back in. Note that `mapfn` must return
@@ -516,6 +560,7 @@ LeadingSign[ex_] := 1
 (* Return the polynomial with the leading sign changed to positive.
  *)
 DropLeadingSign[ex_List] := Map[DropLeadingSign, ex]
+DropLeadingSign[ex_^n_] := DropLeadingSign[ex]^n
 DropLeadingSign[ex_ /; (FactorTermsList[ex] // First // Negative)] := -ex
 DropLeadingSign[ex_] := ex
 
@@ -532,6 +577,18 @@ Bracket[ex_, pat_, coeff_, stemf_] :=
   ex // Expand[#, pat]& // Terms // Map[Factors /* (Times @@@ {Cases[#, pat^_.], DeleteCases[#, pat^_.]} &)] //
     GroupBy[First] // Normal //
     Map[stemf[#[[1]]] coeff[Plus @@ #[[2, ;; , 2]]] &] // Apply[Plus]
+
+(* Similar to [[Bracket]] but returns an association of
+ * {stem->coefficient} pairs. *)
+BracketAssociation[ex_, pat_] :=
+  ex //
+    Expand[#, pat]& //
+    Terms //
+    Map[Factors /* (Times @@@ {Cases[#, pat^_.], DeleteCases[#, pat^_.]} &)] //
+    GroupBy[First] //
+    Map[(Plus @@ #[[;;,2]])&] //
+    Association
+BracketAssociation[pat_] := BracketAssociation[#, pat]&
 
 (* Print the time it takes to evaluate its argument, and return
  * the result of the evaluation. Useful for ad-hoc profiling.
@@ -593,7 +650,7 @@ MkTempDirectory[prefix_, suffix_] := Module[{dirname},
 
 (* Make sure a directory exists. Create it if it doesn’t. *)
 EnsureDirectory[dirs__] := Module[{dir},
-  Do[Quiet[CreateDirectory[dir], {CreateDirectory::filex}];, {dir, {dirs}}];
+  Do[Quiet[CreateDirectory[dir], {CreateDirectory::filex, CreateDirectory::eexist}];, {dir, {dirs}}];
 ]
 
 (* Make sure a directory doesn’t exist. Remove it if it does. *)
@@ -649,6 +706,7 @@ RunMathProgram[code___] := Module[{tmpfile, resfile, math, retcode, result},
 (* Apply a function to a list of items (same as `Map`), but also
  * print current progress information and estimated completion time
  *)
+MapWithProgress[f_, items_Association] := items // Values // MapWithProgress[f] // MapThread[Rule, {items // Keys, #}]& // Association
 MapWithProgress[f_, items_List] := Module[{result, t0, tx, t, ndone = 0, ntodo = Length[items], bcounts, bfrac},
   t0 = tx = SessionTime[];
   bcounts = items//Map[ByteCount];
@@ -1599,14 +1657,17 @@ MemoizedHypExp[eps_, n_] := MemoizedHypExp[#, eps, n]&
 (* ## Feynman Parametrization
  *)
 
-(* Parameterize a loop integral, return {$C$, $U$, $pow_U$, $F$, $pow_F$,
- * $X$, $F_X$}. The integral is then parameterized as
+(* Parameterize a loop integral
+ * $$\int \left( \prod_i {d^d l_i \over (2 \pi)^d} \right) \prod_i {1 \over (P_i + i0)^{\nu_i}},$$
+ * where $P_i$ are the propagators, $l_i$ are the loop momenta,
+ * and $\nu_i$ are the indices; return {$C$, $U$, $pow_U$, $F$,
+ * $pow_F$, $X$, $F_X$}. The integral is then parameterized as
  * $$C \int F_X U^{pow_U} (F+i0)^{pow_F} \delta(1-\sum_i x_i) \prod_i d x_i.$$
  *
  * The propagators are assumed to come with a $+i0$ prescription,
- * and the prefactor will reflect this; loop integration measure
- * is $d^d l/(2\pi)^d$. Propagators with zero indices will be
- * dropped.
+ * and the prefactor $C$ will reflect this; loop integration
+ * measure is $d^d l/(2\pi)^d$. Propagators with zero indices
+ * will be dropped.
  *
  * Example:
  *
