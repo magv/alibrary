@@ -50,7 +50,8 @@ and consists of the following main annotated source files:
 
 * [alibrary.m], the main library;
 * [utils.m], the generic Mathematica helper functions;
-* [atestsuite.m], the test suite for the above.
+* [atestsuite.m], the test suite for the above;
+* [amodel-qcd.m], the QCD-like Feynman rules.
 
 And also the following auxiliary source files:
 
@@ -65,7 +66,8 @@ Finally, the following files remain undocumented:
 * color.h;
 * library.frm;
 * qgraf-modfile;
-* qgraf-stylefile.
+* qgraf-stylefile;
+* tempwrap.
 
 The documentation is not really complete, but the plan is to
 gradually improve it.
@@ -73,6 +75,7 @@ gradually improve it.
 [magv.github.io/alibrary]: https://magv.github.io/alibrary/
 [alibrary.m]: https://magv.github.io/alibrary/alibrary.html
 [atestsuite.m]: https://magv.github.io/alibrary/atestsuite.html
+[amodel-qcd.m]: https://magv.github.io/alibrary/amodel-qcd.html
 [doc.py]: https://magv.github.io/alibrary/doc.html
 [kira.sh]: https://magv.github.io/alibrary/kira.html
 [library.m]: https://magv.github.io/alibrary/library.html

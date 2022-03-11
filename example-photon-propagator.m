@@ -17,10 +17,11 @@
 SetOptions[$Output, PageWidth -> 65];
 $HistoryLength = 2;
 
-(* Load *alibrary*.
+(* Load *alibrary* and the [[QCD Feynman rules]] from `amodel-qcd.m`.
  *)
 
 Get["alibrary.m"];
+Get[$Apath <> "/amodel-qcd.m"];
 
 (* We shall calculate the corrections of order $\alpha_s^\text{NLOOPS}$,
  * so define `NLOOPS`.
@@ -34,7 +35,7 @@ NLOOPS = 2;
  * photon with QGraf by the way of [[mkdia.py]].
  *)
 
-SafeRun["./mkdia.py dia-A-A-", NLOOPS, ".m"];
+SafeRun[$Apath, "/mkdia.py dia-A-A-", NLOOPS, ".m"];
 diagrams = SafeGet[MkString["dia-A-A-", NLOOPS, ".m"]];
 Print["Loaded ", diagrams//Length, " diagrams"];
 
@@ -210,7 +211,7 @@ FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
  * 
  * Next, lets do the IBP reduction.
  *
- * Now, [[KiraIBP]] is the simple interface to IBP with [Kira].
+ * We'll use [[KiraIBP]], a simple interface to IBP with [Kira].
  * It is probably too simplistic to work automatically for larger
  * examples, but for this problem it’s ideal.
  *
@@ -290,3 +291,27 @@ error = fullamplitude /.
   d -> 4 - 2*eps /.
   pspoint /.
   MapThread[Rule, {masters, mastererrors}];
+
+(* Because the full amplitude has symbolic contants in it, let
+ * us pretty-print it by separating them.
+ *)
+
+Print["Value:"];
+value //
+  Normal //
+  BracketAssociation[#, _Symbol | _flvsum | _flvsumt]& //
+  Normal //
+  Map[(
+    Print["+", #[[1]], " *"];
+    Print["  ", #[[2]]];
+  )&];
+
+Print["Absolute uncertainty:"];
+error //
+  Normal //
+  BracketAssociation[#, _Symbol | _flvsum | _flvsumt]& //
+  Normal //
+  Map[(
+    Print["+", #[[1]], " *"];
+    Print["  ", #[[2]]];
+  )&];

@@ -137,15 +137,7 @@ DiagramXGraph[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
 
 (* Convert a diagram to a source code for a Graphviz `digraph` object.
  *)
-DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{c, defc},
-  c = <|
-    "q" -> 6, "Q" -> 6,
-    "t" -> 6, "T" -> 6,
-    "g" -> 4,
-    "c" -> 8, "C" -> 8,
-    "O" -> 10, "H" -> 10, "A" -> 10, "Z" -> 10, "s" -> 10, "S" -> 10
-  |>;
-  defc = 12;
+DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{},
   MkString[
    "digraph {\n",
    " fontsize=12; margin=0;\n",
@@ -155,27 +147,19 @@ DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{c, defc
    o /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [width=0.05 color=gray];\n"} &],
    i /. F[f_, fi_, vi_, mom_] :> {
      " ", fi, " -> ", vi,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"},
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"},
    p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
      " ", vi1, " -> ", vi2,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"},
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f], ",style=bold];\n"},
    o /. F[f_, fi_, vi_, mom_] :> {
      " ", vi, " -> ", fi,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"},
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"},
    "}\n"
    ]
 ]
 DiagramToGraphviz[CutDiagram[
   Diagram[id1_, _, i1_List, o1_List, p1_List, v1_List], Diagram[id2_, _, i2_List, o2_List, p2_List, v2_List]
-]] := Module[{c, defc},
-  c = <|
-    "q" -> 6, "Q" -> 6,
-    "t" -> 6, "T" -> 6,
-    "g" -> 4,
-    "c" -> 8, "C" -> 8,
-    "O" -> 10, "H" -> 10, "A" -> 10, "Z" -> 10, "s" -> 10, "S" -> 10
-  |>;
-  defc = 12;
+]] := Module[{},
   MkString[
    "digraph {\n",
    " fontsize=12; margin=0; label_scheme=2;\n",
@@ -188,31 +172,33 @@ DiagramToGraphviz[CutDiagram[
    o1 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" \"|edgelabel|", -#, "00\" [fontsize=10 width=0.05 shape=square color=gray label=\"", #, "\"];\n"} &],
    i1 /. F[f_, fi_, vi_, mom_] :> {
      " ", fi, "01 -> ", vi, "01",
-     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"
    },
    i2 /. F[f_, fi_, vi_, mom_] :> {
      " ", fi, "02 -> ", vi, "02",
-     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+     "[label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"
    },
    p1 /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
      " ", vi1, "01 -> ", vi2, "01",
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f], ",style=bold];\n"
    },
    p2 /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
      " ", vi1, "02 -> ", vi2, "02",
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc], ",style=bold];\n"
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f], ",style=bold];\n"
    },
    o1 /. F[f_, fi_, vi_, mom_] :> {
      " ", vi, "01 -> \"|edgelabel|", -fi, "00\"",
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"
    },
    o2 /. F[f_, fi_, vi_, mom_] :> {
      " ", vi, "02 -> \"|edgelabel|", -fi, "00\"",
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", Lookup[c, f, defc] - 1, "];\n"
+     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"
    },
    "}\n"
    ]
 ]
+
+FieldGraphvizColor[field_] = 12;
 
 (* Use Graphviz to convert a diagram into a `Graphics` object.
  * Useful for visualization.
@@ -296,18 +282,9 @@ Module[{l, r, angle, rotationmx, coordmap3, scalefactor},
  * [tikzit]: https://tikzit.github.io/
  *)
 DiagramToTikZ[Diagram[id_, _, i_List, o_List, p_List, v_List], OptionsPattern[]] :=
-Module[{stylemap, pstyles, ni, no, coords, scale, external},
-  stylemap = {
-    "q"|"u"|"d"|"c"|"s"|"b"|"x"|"y" -> "edge",
-    "t"|"T" -> "top",
-    "H" -> "higgs",
-    "g" -> "gluon",
-    "h" -> "scalar",
-    "c" -> "ghost",
-    _ -> "edge"
-  };
+Module[{pstyles, ni, no, coords, scale, external},
   pstyles = OptionValue[PropagatorStyles] //
-    If[# =!= None, #, p /. P[f_, ___] :> (f /. stylemap)]&;
+    If[# =!= None, #, p /. P[f_, ___] :> FieldTikZStyle[f]]&;
   FailUnless[Length[p] === Length[pstyles]];
   ni = Length[i];
   no = Length[o];
@@ -356,10 +333,10 @@ Module[{stylemap, pstyles, ni, no, coords, scale, external},
     "\t\\end{pgfonlayer}\n",
     "\t\\begin{pgfonlayer}{edgelayer}\n",
     i /. F[f_, fi_, vi_, mom_] :> {
-      "\t\t\\draw [style=incoming ", f /. stylemap, "] (", fi, ") to (", vi, ");\n"
+      "\t\t\\draw [style=incoming ", FieldTikZStyle[f], "] (", fi, ") to (", vi, ");\n"
     },
     o /. F[f_, fi_, vi_, mom_] :> {
-      "\t\t\\draw [style=outgoing ", f /. stylemap, "] (", vi, ") to (", fi, ");\n"
+      "\t\t\\draw [style=outgoing ", FieldTikZStyle[f], "] (", vi, ") to (", fi, ");\n"
     },
     {p, pstyles} // Transpose // MapReplace[
       {P[f_, fi1_, fi2_, vi1_, vi2_, mom_], s_} :>
@@ -370,6 +347,8 @@ Module[{stylemap, pstyles, ni, no, coords, scale, external},
   ]
 ]
 Options[DiagramToTikZ] = {PropagatorStyles -> None};
+
+FieldTikZStyle[field_] = "edge";
 
 (* Create a TikZ graph file from the given edges and labels.
  *)
@@ -2559,3 +2538,21 @@ BDiffByInv[basis_Association, indices_List, inv_Symbol] := Module[{invlist, spli
 BDiff[ex_, basis_Association, s_sp] := ex /. B[basis["id"], idx__] :> BDiffBySP[basis, {idx}, s]
 BDiff[ex_, basis_Association, inv_Symbol] := ex /. B[basis["id"], idx__] :> BDiffByInv[basis, {idx}, inv]
 BDiff[basis_Association, inv_Symbol] := BDiff[#, basis, inv]&
+
+(* ## Amplitudes
+ *)
+
+(* Compute the sum over the final state particle states (i.e.
+ * the spin sum and the polarization sum) of a product of two
+ * diagrams, the second being complex-conjugated.
+ *)
+DiagramFinalStateSum[
+  dia1:Diagram[id1_, factor1_, ifields1_List, ofields1_List, propagators1_List, vertices1_List],
+  dia2:Diagram[id2_, factor2_, ifields2_List, ofields2_List, propagators2_List, vertices2_List]
+] := (
+  FailUnless[ofields1[[;;,1]] === ofields2[[;;,1]]];
+  Times[
+    MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times],
+    ofields1[[;;,1]] // PositionIndex // Values // Map[Length /* Factorial] // 1/Times@@# &
+  ]
+)

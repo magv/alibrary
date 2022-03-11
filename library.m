@@ -16,18 +16,6 @@ Module[{idx, nterms},
 SeriesDropTerms[l_List, pattern_] := Map[SeriesDropTerms[#, pattern] &, l]
 SeriesDropTerms[pattern_] := SeriesDropTerms[#, pattern] &
 
-(* Cached["fib123.m", Fibonacci[123]] will load from "fib123.m",
- * or evaluate the expression, and save it.
- *)
-SetAttributes[Cached, {HoldAll}];
-Cached[key_, body_] := Module[{filename = MkString[key], result},
-  If[FileExistsQ[filename],
-   Print["Loading cached results from ", filename];
-   SafeGet[filename],
-   result = body; Put[result, filename]; result
-   ]
-  ]
-
 (* Run a (shell) command, print its output into the GUI.
  *)
 Runx[command__] := Module[{file, s},
@@ -44,6 +32,7 @@ Runx[command__] := Module[{file, s},
  *)
 FasterFactor[ex_List] := Map[FasterFactor, ex]
 FasterFactor[ex_Times] := Map[FasterFactor, ex]
+FasterFactor[ex_^n_] := FasterFactor[ex]^n
 FasterFactor[ex_] := Module[{gcd, terms},
   terms = ex // Expand // Terms;
   If[Length[terms] === 0,
@@ -180,119 +169,16 @@ deltaadj[a_, b_] := delta[adj[a], adj[b]]
 deltalor[a_, b_] := delta[lor[a], lor[b]]
 
 ClearAll[Amplitude];
-(* Propagators *)
-Amplitude[P["q", fi1_, fi2_, _, _, p_]] :=
-  I deltaflv[fi1, fi2] deltafun[fi2, fi1] \
-  gammachain[slash[p], spn[fi2], spn[fi1]] den[p]
-Amplitude[P["t", fi1_, fi2_, _, _, p_]] :=
-  I deltaflvt[fi1, fi2] deltafun[fi2, fi1] \
-  (gammachain[slash[p], spn[fi2], spn[fi1]] + mt1 gammachain[spn[fi2], spn[fi1]]) den[p, mt2]
-Amplitude[P["g", fi1_, fi2_, _, _, p_]] :=
-  -I deltaadj[fi1, fi2] (deltalor[fi1, fi2] den[p] -
-    Xi momentum[p, lor[fi1]] momentum[p, lor[fi2]] den[p]^2)
-Amplitude[P["H", fi1_, fi2_, _, _, p_]] := I den[p]
-Amplitude[P["s"|"S", fi1_, fi2_, _, _, p_]] := I den[p]
-Amplitude[P["c", fi1_, fi2_, _, _, p_]] := I deltaadj[fi1, fi2] den[p]
+(* The definitions of the actual amplitudes for Amplitude[Propagators *)
+Amplitude[P[field_, fi1_, fi2_, _, _, p_]] :=
+  Error["No Feynman rules for the propagator of ", field]
 (* Vertices *)
-Amplitude[V[_, "gqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  I gs deltaflv[fi2, fi3] gammachain[gamma[lor[fi1]], spn[fi3],
-  spn[fi2]] colorT[adj[fi1], fun[fi3], fun[fi2]]
-Amplitude[V[_, "gtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  I gs deltaflvt[fi2, fi3] gammachain[gamma[lor[fi1]], spn[fi3],
-  spn[fi2]] colorT[adj[fi1], fun[fi3], fun[fi2]]
-Amplitude[V[_, "gcC", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  -gs colorf[adj[fi1], adj[fi2], adj[fi3]] momentum[-p3, lor[fi1]]
-Amplitude[V[_, "AqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQ[flv[fi2]] \
-  gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
-Amplitude[V[_, "AtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* ge *) I deltaflvt[fi2, fi3] deltafun[fi3, fi2] chargeQt[flv[fi2]] \
-  gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
-Amplitude[V[_, "ZqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* gz *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] (
-    chargeV[flv[fi2]] gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]] -
-    (* gamma5[mu] == gamma[mu] gamma5 *)
-    chargeA[flv[fi2]] gammachain[gamma5[lor[fi1]], spn[fi3], spn[fi2]]
-  )
-Amplitude[V[_, "ggg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  gs colorf[adj[fi1], adj[fi2], adj[fi3]] (
-    deltalor[fi1, fi2] momentum[p1 - p2, lor[fi3]] +
-    deltalor[fi2, fi3] momentum[p2 - p3, lor[fi1]] +
-    deltalor[fi3, fi1] momentum[p3 - p1, lor[fi2]]
-  )
-Amplitude[V[vi_, "gggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] :=
-  Module[{adjX = adj[1000 + vi]},
-    -I gs^2 (
-      colorf[adjX, adj[fi1], adj[fi2]] colorf[adjX, adj[fi3], adj[fi4]]
-        (deltalor[fi1, fi3] deltalor[fi2, fi4] -
-          deltalor[fi1, fi4] deltalor[fi2, fi3]) +
-      colorf[adjX, adj[fi1], adj[fi3]] colorf[adjX, adj[fi4], adj[fi2]]
-        (deltalor[fi1, fi4] deltalor[fi2, fi3] -
-          deltalor[fi1, fi2] deltalor[fi3, fi4]) +
-      colorf[adjX, adj[fi1], adj[fi4]] colorf[adjX, adj[fi2], adj[fi3]]
-        (deltalor[fi1, fi2] deltalor[fi3, fi4] -
-          deltalor[fi1, fi3] deltalor[fi2, fi4])
-    )
-  ]
-Amplitude[V[_, "HtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  gH deltaflvt[fi2, fi3] deltafun[fi2, fi3] gammachain[spn[fi3], spn[fi2]]
-Amplitude[V[_, "Hgg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* gh *) I deltaadj[fi2, fi3] (
-    deltalor[fi2, fi3] dot[p2, p3] - momentum[p2, lor[fi3]] momentum[p3, lor[fi2]]
-  )
-Amplitude[V[vi_, "Hggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] :=
-  (* gh *) Amplitude[V[vi, "ggg", fi2, p2, fi3, p3, fi4, p4]]
-Amplitude[V[vi_, "Hgggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_, fi5_, p5_]] :=
-  (* gh *) Amplitude[V[vi, "gggg", fi2, p2, fi3, p3, fi4, p4, fi5, p5]]
-Amplitude[V[vi_, "OqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] := (
-  FailUnless[IntegerQ[OPN]];
-  If[OPN < 1, 0,
-    deltaflv[fi2, fi3]
-      deltafun[fi3, fi2]
-      gammachain[slash[pDELTA], spn[fi3], spn[fi2]]
-      dot[pDELTA, p3]^(OPN-1)
-  ]
-)
-Amplitude[V[vi_, "OqQg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] := (
-  FailUnless[IntegerQ[OPN]];
-  If[OPN < 2, 0,
-    gs deltaflv[fi2, fi3]
-      momentum[pDELTA, lor[fi4]]
-      colorT[adj[fi4], fun[fi3], fun[fi2]]
-      gammachain[slash[pDELTA], spn[fi3], spn[fi2]]
-      Sum[dot[pDELTA, p3]^(OPN-2-j) dot[pDELTA, (p2+p3+p4)-p2]^j, {j, 0, OPN-2}]
-  ]
-)
-Amplitude[V[_, "sss", fi1_, p1_, fi2_, p2_, fi3_, p3_]] := I
-Amplitude[V[_, "ssss", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] := I
-Amplitude[V[_, "sssss", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_, fi5_, p5_]] := I
-Amplitude[V[_, "SSS", fi1_, p1_, fi2_, p2_, fi3_, p3_]] := I
-Amplitude[V[_, "SSSS", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] := I
-Amplitude[V[_, "SSSSS", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_, fi5_, p5_]] := I
-(*
-(* Incoming Fields *)
-AmplitudeIF[F["A"|"Z"|"g"|"q"|"Q", fi_, _, mom_]] := 1 (* Use a projector here instead *)
-AmplitudeIF[F["H" | "c" | "C", fi_, _, mom_]] := 1
-(*
-AmplitudeIF[F["A"|"Z"|"g", fi_, _, mom_]] := polarization[mom, lor[fi], I]
-AmplitudeIF[F["q", fi_, _, mom_]] := gammachain[spinor(*u*)[mom, I], spn[fi], X[fi]]
-AmplitudeIF[F["Q", fi_, _, mom_]] := gammachain[spinor(*vbar*)[mom, -I], X[fi], spn[fi]]
-*)
-AmplitudeIF[F["O", fi_, _, mom_]] := 1
-AmplitudeIF[x__] := Error["Don't know an incoming field amplitude for: ", x]
-(* Outgoing Fields *)
-AmplitudeOF[F["A"|"Z", fi_, _, mom_]] := 1 (* polarization[mom, lor[fi], -I] *)
-AmplitudeOF[F["g", fi_, _, mom_]] := 1 (* polarization[mom, lor[fi], -I]*)
-AmplitudeOF[F["H" | "c" | "C", fi_, _, mom_]] := 1
-AmplitudeOF[F["q", fi_, _, mom_]] := gammachain[spinor(*ubar*)[mom, -I], X[fi], spn[fi]]
-AmplitudeOF[F["Q", fi_, _, mom_]] := gammachain[spinor(*v*)[mom, I], spn[fi], X[fi]]
-AmplitudeOF[F["O", fi_, _, mom_]] := 1
-AmplitudeOF[x__] := Error["Don't know an outgoing field amplitude for: ", x]
-*)
+Amplitude[V[_, fields_, ___]] :=
+  Error["No Feynman rules for the vertex ", fields]
 (* Diagrams *)
 Amplitude[
   dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]] := Flatten[{
-    DiagramSign[dia, "q"|"Q"|"c"|"C"|"t"|"T"],
+    DiagramSign[dia, $FermionFieldPattern],
     Abs[factor],
     propagators // Map[Amplitude],
     vertices // Map[Amplitude]
@@ -536,9 +422,8 @@ ColoredGraphCanonicalString[g_] :=
  * a CutDiagram.
  *)
 ClearAll[Denominators];
-Denominators[P["t"|"T", _, _, _, _, mom_]] := {den[mom, mt2]}
-Denominators[P["q"|"g"|"s"|"c", _, _, _, _, mom_]] := {den[mom]}
-Denominators[d_Diagram] := d // CaseUnion[_P] // Map[Denominators] // Apply[Join] // NormalizeDens
+Denominators[p_P] := Amplitude[p] // CaseUnion[_den]
+Denominators[d_Diagram] := d // DiagramPropagators // Map[Denominators] // Apply[Join] // NormalizeDens
 Denominators[CutDiagram[
     Diagram[_, _, _, o1_List, p1_List, _List],
     Diagram[_, _, _, o2_List, p2_List, _List]
@@ -850,16 +735,6 @@ ClearAll[ExpandDot, LinearizeDot]
 ExpandDot[a_, b_] := Distribute[Dot[Expand[a], Expand[b]]] /. Dot -> LinearizeDot
 LinearizeDot[k1_.*a_Symbol, k2_. b_Symbol] := k1 k2 Dot @@ Sort[{a, b}]
 LinearizeDot[a_, b_] := Error["ExpandDot: don't know how to expand ", a.b]
-
-BToDen[ex_, ibpbasis_List] := (ex
-  /. B[bid_, idx__] :> (Times @@ (ibpbasis[[bid, 4]]^{idx}))
-  /. den[p_]^n_?Negative :> dot[p, p]^(-n)
-  /. den[p_, m_]^n_?Negative :> (dot[p, p] - m)^(-n)
-  /. den[p_, m_, irr]^n_?Negative :> (dot[p, p] - m)^(-n)
-  /. dot -> ExpandDot
-  /. den[p_, m2_, irr] :> (dot[p, p] - m2)
-)
-BToDen[ibpbasis_List] := BToDen[#, ibpbasis] &
 
 SemiInclusiveCuts[in_String, out1_String, order_Integer, projector_String] :=
 Module[{particles, priority, n1, n2, proj},
