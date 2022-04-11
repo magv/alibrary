@@ -93,6 +93,7 @@ def escape_html_attr(text):
 
 def latex_to_svg(fragments):
     with tempfile.TemporaryDirectory(prefix="latex2svg") as tmpdir:
+        os.system(f"cp -a all.tikzdefs all.tikzstyles '{tmpdir}/'")
         with open(os.path.join(tmpdir, "main.tex"), "w") as f:
             f.write(LATEX_PREFIX)
             for fragment in fragments:
@@ -518,18 +519,8 @@ LATEX_PREFIX = r"""
 \PreviewBorder=0.1pt
 \usepackage[charter]{mathdesign}
 \usepackage{amsmath}
-\usepackage{tikz}
-\usetikzlibrary{fit}
-\usetikzlibrary{decorations.markings}
-\usetikzlibrary{decorations.pathmorphing}
-\usetikzlibrary{decorations.pathreplacing}
-\pgfdeclarelayer{nodelayer}
-\pgfdeclarelayer{edgelayer}
-\pgfsetlayers{edgelayer,nodelayer}
-\tikzset{baseline=0pt}
-\tikzset{inner sep=0}
-\tikzset{every picture/.style={execute at end picture={\node[fit=(current bounding box),inner sep=0.1mm]{};}}}
-\tikzset{every loop/.style={min distance=10mm}}
+\input{all.tikzdefs}
+\input{all.tikzstyles}
 \begin{document}
 """
 

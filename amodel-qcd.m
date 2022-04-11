@@ -79,9 +79,9 @@ FieldGraphvizColor["A"|"Z"] = 10;
 
 (* Field styles for [[DiagramToTikZ]].
  *)
-FieldTikZStyle["q"|"Q"] = "edge";
-FieldTikZStyle["t"|"T"] = "massive edge";
+FieldTikZStyle["q"|"Q"] = "fermion";
+FieldTikZStyle["t"|"T"] = "massive fermion";
 FieldTikZStyle["g"] = "gluon";
 FieldTikZStyle["c"|"C"] = "ghost";
-FieldTikZStyle["H"] = "higgs";
-FieldTikZStyle["A"|"Z"] = "photon";
+FieldTikZStyle["H"] = "scalar";
+FieldTikZStyle["A"|"Z"] = "vector";

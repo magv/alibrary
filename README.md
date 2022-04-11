@@ -64,6 +64,8 @@ And also the following auxiliary source files:
 Finally, the following files remain undocumented:
 
 * color.h;
+* all.tikzdefs;
+* all.tikzstyles;
 * library.frm;
 * qgraf-modfile;
 * qgraf-stylefile;
@@ -98,9 +100,11 @@ and intended usage.
 
 As an example of the common usage, please take a look at:
 
-* the calculation of QCD corrections to a [photon propagator].
+* the calculation of QCD corrections to a [photon propagator];
+* an explanation on [displaying diagrams].
 
-[photon propagator]: https://magv.github.io/alibrary/example-photon-propagator.html
+[photon propagator]: https://magv.github.io/alibrary/examples/photon-propagator.html
+[displaying diagrams]: https://magv.github.io/alibrary/examples/diagrams.html
 
 ## Installation
 

@@ -39,6 +39,11 @@ SafeRun[$Apath, "/mkdia.py dia-A-A-", NLOOPS, ".m"];
 diagrams = SafeGet[MkString["dia-A-A-", NLOOPS, ".m"]];
 Print["Loaded ", diagrams//Length, " diagrams"];
 
+(* One can now view the graphical representation of these diagrams
+ * directly in Mathematica, or export them to LaTeX; please see
+ * [[Displaying diagrams]] for an example.
+ *)
+
 (* ## Tensor projectors
  *
  * Because the (amputated) photon propagator has open Lorentz

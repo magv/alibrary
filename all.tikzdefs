@@ -1,0 +1,45 @@
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{calc}
+\usetikzlibrary{decorations.markings}
+\usetikzlibrary{decorations.pathmorphing}
+\usetikzlibrary{decorations.pathreplacing}
+\usetikzlibrary{decorations.shapes}
+\usetikzlibrary{external}
+\usetikzlibrary{fit}
+\usetikzlibrary{positioning}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{shapes.misc}
+
+\tikzset{baseline=-0.6ex}
+\tikzset{inner sep=0}
+
+\pgfdeclarelayer{nodelayer}
+\pgfdeclarelayer{edgelayer}
+\pgfsetlayers{edgelayer,nodelayer,main}
+
+\tikzset{every picture/.style={execute at end picture={\node[fit=(current bounding box),inner sep=0.1mm]{};}}}
+\tikzset{every loop/.style={min distance=10mm}}
+
+\tikzstyle{none}=[]
+
+\definecolor{EdgeColor}{HTML}{c92946}
+\definecolor{MassiveEdgeColor}{RGB}{133,119,181}
+\definecolor{PaleEdgeColor}{RGB}{102,102,102}
+\definecolor{FermionColor}{RGB}{176,36,39}
+\definecolor{MassiveFermionColor}{HTML}{1165ef}
+\definecolor{GluonColor}{RGB}{176,36,39}
+\definecolor{VectorColor}{RGB}{176,36,39}
+\definecolor{ScalarColor}{RGB}{102,102,102}
+
+\definecolor{SapGreen}{HTML}{3B7B3B}
+\definecolor{PhtaloGreen}{HTML}{2b7a76}
+\definecolor{EmeraldGreen}{HTML}{1ea78d}
+\definecolor{EnglishRed}{HTML}{b02427}
+\definecolor{IronOxideRed}{HTML}{a13634}
+\definecolor{CadmiumRed}{HTML}{df2b3f}
+\definecolor{Vermillion}{HTML}{e14235}
+\definecolor{PropagatorColor}{HTML}{c92946}
+\definecolor{LegColor}{HTML}{8d6566}
+\definecolor{TopLegColor}{HTML}{5571a2}
+\definecolor{HiggsLegColor}{HTML}{77679b}
