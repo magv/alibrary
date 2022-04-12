@@ -1,5 +1,6 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta}
+\usetikzlibrary{bending}
 \usetikzlibrary{calc}
 \usetikzlibrary{decorations.markings}
 \usetikzlibrary{decorations.pathmorphing}
@@ -32,14 +33,4 @@
 \definecolor{VectorColor}{RGB}{176,36,39}
 \definecolor{ScalarColor}{RGB}{102,102,102}
 
-\definecolor{SapGreen}{HTML}{3B7B3B}
-\definecolor{PhtaloGreen}{HTML}{2b7a76}
-\definecolor{EmeraldGreen}{HTML}{1ea78d}
-\definecolor{EnglishRed}{HTML}{b02427}
-\definecolor{IronOxideRed}{HTML}{a13634}
-\definecolor{CadmiumRed}{HTML}{df2b3f}
-\definecolor{Vermillion}{HTML}{e14235}
-\definecolor{PropagatorColor}{HTML}{c92946}
-\definecolor{LegColor}{HTML}{8d6566}
-\definecolor{TopLegColor}{HTML}{5571a2}
-\definecolor{HiggsLegColor}{HTML}{77679b}
+\tikzstyle{whitebg}=[preaction={{draw=white,line width=2pt,{Latex[length=0pt 2,width=0pt 1.05,bend]}-{Latex[length=0pt 2,width=0pt 1.05,bend]}}}]

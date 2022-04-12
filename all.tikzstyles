@@ -9,27 +9,24 @@
 \tikzstyle{fat}=[fill=white, shape=circle, draw={rgb,255: red,176; green,36; blue,39}, dashed, line width=1pt, inner sep=0.8pt]
 
 % Edge styles
-\tikzstyle{edge}=[-, draw=EdgeColor, line width=1.2pt, line cap=rect, preaction={{draw=white,line width=2.5pt}}]
-\tikzstyle{incoming edge}=[line width=1pt, line cap=rect, draw=PaleEdgeColor, {|-}]
-\tikzstyle{outgoing edge}=[line width=1pt, line cap=rect, draw=PaleEdgeColor, ->]
-
-\tikzstyle{edge}=[-, draw=EdgeColor, line width=1.2pt, line cap=rect, preaction={{draw=white,line width=2.5pt}}]
+\tikzstyle{edge}=[-, draw=EdgeColor, line width=1.2pt, line cap=rect, style=whitebg]
+%\tikzstyle{edge}=[-, draw=red, draw=white, double=EdgeColor, line width=0.6pt, double distance=1.2pt]
 \tikzstyle{incoming edge}=[-, style=edge, draw=PaleEdgeColor, {|-}]
 \tikzstyle{outgoing edge}=[-, style=edge, draw=PaleEdgeColor, ->]
 
-\tikzstyle{massive edge}=[-, draw=MassiveEdgeColor, line width=2.0pt, preaction={{draw=white,line width=2.5pt}}, line cap=rect]
+\tikzstyle{massive edge}=[-, draw=MassiveEdgeColor, line width=2.0pt, style=whitebg, line cap=rect]
 \tikzstyle{incoming massive edge}=[-, style=massive edge, draw=PaleEdgeColor]
 \tikzstyle{outgoing massive edge}=[-, style=massive edge, draw=PaleEdgeColor]
 
-\tikzstyle{fermion}=[-, draw=FermionColor, line width=1pt, preaction={{draw=white,line width=2pt}}, line cap=rect, postaction=decorate, decoration={markings,mark=at position .60 with {\arrow{stealth[round]}}}]
+\tikzstyle{fermion}=[-, draw=FermionColor, line width=1pt, style=whitebg, line cap=rect, postaction=decorate, decoration={markings,mark=at position .60 with {\arrow{stealth[round]}}}]
 \tikzstyle{incoming fermion}=[-, style=fermion, draw=PaleEdgeColor]
 \tikzstyle{outgoing fermion}=[-, style=fermion, draw=PaleEdgeColor]
 
-\tikzstyle{massive fermion}=[-, draw=MassiveFermionColor, line width=1.9pt, line cap=rect, preaction={{draw=white,line width=2.5pt}}]
+\tikzstyle{massive fermion}=[-, draw=MassiveFermionColor, line width=1.9pt, line cap=rect, style=whitebg]
 \tikzstyle{incoming massive fermion}=[-, style=massive fermion, draw=PaleEdgeColor]
 \tikzstyle{outgoing massive fermion}=[-, style=massive fermion, draw=PaleEdgeColor]
 
-\tikzstyle{gluon}=[-, draw=GluonColor, line width=1pt, preaction={{draw=white,line width=2pt}}, line cap=rect, decorate, decoration={coil,aspect=1.4,segment length=2.5mm}]
+\tikzstyle{gluon}=[-, draw=GluonColor, line width=1pt, preaction={{draw=white,line width=2pt}}, line cap=rect, decorate, decoration={coil,aspect=1.5,segment length=7pt}]
 \tikzstyle{incoming gluon}=[-, style=gluon, draw=PaleEdgeColor]
 \tikzstyle{outgoing gluon}=[-, style=gluon, draw=PaleEdgeColor]
 
