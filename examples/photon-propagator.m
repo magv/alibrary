@@ -314,7 +314,8 @@ error = valueanderror //
   Bracket[#, _Symbol | _flvsum | _flvsumt,
     Expand /*
     (ReplaceRepeated[#, {
-      ERR[e_] * c_ :> ERR[(Abs[Re[c]] + I Abs[Im[c]]) e],
+      ERR[e_] * c_ :>
+        ERR[Sqrt[(Re[e] Re[c])^2 + (Im[e] Im[c])^2] + I Sqrt[(Re[e] Im[c])^2 + (Im[e] Re[c])^2]],
       ERR[e1_] + ERR[e2_] :>
         ERR[Sqrt[Re[e1]^2 + Re[e2]^2] + I Sqrt[Im[e1]^2 + Im[e2]^2]]
     }]&) /*
