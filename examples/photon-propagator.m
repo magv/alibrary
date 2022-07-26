@@ -271,10 +271,12 @@ Print["Master integrals: ", masters // Length];
  * computing cluster even. See [[SecDecCompile]] for details.
  *)
 
-SecDecCompile["secdectmpdir", bases, masters // Map[{#, 2}&]];
+EPSORDER = 2;
+SecDecCompile["secdectmpdir", bases, masters // Map[{#, EPSORDER}&]];
 
 (* The integration can also be performed in parallel, on a
- * cluster. See [[SecDecIntegrate]] for details.
+ * cluster: see [[SecDecIntegrate]] for details. Here let us
+ * just run it locally; it won't take much time.
  *)
 
 pspoint = { sqrq -> 120/100, mt2 -> 34/100 };
@@ -283,19 +285,41 @@ pspoint = { sqrq -> 120/100, mt2 -> 34/100 };
   SecDecIntegrate["secdectmpdir", masters, pspoint] //
   Transpose;
 
-(* Finally we have the value and the uncertainty of the full
- * amplitude.
+(* In pySecDec, as well as most numerical integration programs,
+ * each result is assumed to be a normally distributed random
+ * variable with some given standard deviation. This is why in
+ * addition to `mastervalues` we also receive `mastererrors`
+ * from [[SecDecIntegrate]].
+ *
+ * To get the final result (the amplitude) and its uncertainty,
+ * remember that
+ *
+ * $$
+ *     C_1 \mathcal{N}(x_1, \sigma_1) + C_2 \mathcal{N}(x_2, \sigma_2) =
+ *         \mathcal{N}(C_1 x_1 + C_2 x_2, \sqrt{C_1^2 \sigma_1^2 + C_2^2 \sigma_2^2}):
+ * $$
  *)
 
-value = fullamplitude  /.
+valueanderror = fullamplitude  /.
   d -> 4 - 2*eps /.
   pspoint /.
-  MapThread[Rule, {masters, mastervalues}];
+  MapThread[Rule, {
+    masters,
+    mastervalues + MapSeries[ERR, mastererrors]
+  }];
 
-error = fullamplitude /.
-  d -> 4 - 2*eps /.
-  pspoint /.
-  MapThread[Rule, {masters, mastererrors}];
+value = valueanderror /. _ERR -> 0;
+
+error = valueanderror //
+  Bracket[#, _Symbol | _flvsum | _flvsumt,
+    Expand /*
+    (ReplaceRepeated[#, {
+      ERR[e_] * c_ :> ERR[(Abs[Re[c]] + I Abs[Im[c]]) e],
+      ERR[e1_] + ERR[e2_] :>
+        ERR[Sqrt[Re[e1]^2 + Re[e2]^2] + I Sqrt[Im[e1]^2 + Im[e2]^2]]
+    }]&) /*
+    Replace[v_ + ERR[e_] :> e]
+  ]&;
 
 (* Because the full amplitude has symbolic contants in it, let
  * us pretty-print it by separating them.
@@ -308,7 +332,7 @@ value //
   Normal //
   Map[(
     Print["+", #[[1]], " *"];
-    Print["  ", #[[2]]];
+    Print["  ", #[[2]] // N];
   )&];
 
 Print["Absolute uncertainty:"];
@@ -318,5 +342,5 @@ error //
   Normal //
   Map[(
     Print["+", #[[1]], " *"];
-    Print["  ", #[[2]]];
+    Print["  ", #[[2]] // N];
   )&];
