@@ -1958,8 +1958,8 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order, pr
       "  regulator = 'eps',\n",
       "  propagators = [\n",
       basis["denominators"] /. {
-        den[p_] :> {"    '(", p//CForm, ")^2'"},
-        den[p_,m_,___] :> {"    '(", p//CForm, ")^2-", m//CForm, "'"}
+        den[p_] :> {"    '(", p//ToSympy, ")^2'"},
+        den[p_,m_,___] :> {"    '(", p//ToSympy, ")^2-", m//ToSympy, "'"}
       } // Riffle[#, ",\n"]&,
       "\n",
       "  ],\n",
@@ -2088,8 +2088,8 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
       "\n",
       "b", basis["id"], "_propagators = [\n",
       basis["denominators"] /. {
-        den[p_] :> {"    '(", p//CForm, ")^2'"},
-        den[p_,m_,___] :> {"    '(", p//CForm, ")^2-", m//CForm, "'"}
+        den[p_] :> {"    '(", p//ToSympy, ")^2'"},
+        den[p_,m_,___] :> {"    '(", p//ToSympy, ")^2-", m//ToSympy, "'"}
       } // Riffle[#, ",\n"]&,
       "\n]\n",
       "\n",
@@ -2104,7 +2104,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
           ReplaceAll[sp -> (sp /* Sort)] //
           Union //
           MapReplace[
-            (sp[p1_, p2_] -> v_) :> {"    ('", p1//InputForm, "*", p2//InputForm, "', '", v//InputForm, "')"}
+            (sp[p1_, p2_] -> v_) :> {"    ('", p1//InputForm, "*", p2//InputForm, "', '", v//ToSympy, "')"}
           ] // Riffle[#, ",\n"]&,
         "\n]\n"
         }
