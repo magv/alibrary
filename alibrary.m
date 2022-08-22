@@ -2189,7 +2189,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "    else:\n",
     "        terms = [f() for f in make_terms]\n",
     "    coefficients = [f() for f in make_coefficients]\n",
-    "    subprocess.check_call(['rm', '-rf', 'disteval'])\n",
+    "    subprocess.check_call(['rm', '-rf', 'sum_pylink.so', 'sum_data'])\n",
     "    cwd = os.getcwd()\n",
     "    with tempfile.TemporaryDirectory(prefix='psd') as tmp:\n",
     "        os.chdir(tmp)\n",
@@ -2203,8 +2203,9 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "],\n",
     "            processes = threads\n",
     "        )\n",
-    "        subprocess.check_call(['make', '-C', 'sum', '-j', str(threads), 'disteval.done', 'CXXFLAGS=-mfma -mavx2', 'CXX=clang++'])\n",
-    "        subprocess.check_call(['cp', '-a', 'sum/disteval', cwd])\n",
+    "        subprocess.check_call(['make', '-C', 'sum', '-j', str(threads)])\n",
+    "        subprocess.check_call(['cp', '-a', 'sum/sum_pylink.so', cwd])\n",
+    "        subprocess.check_call(['cp', '-a', 'sum/sum_data', cwd])\n",
     "        subprocess.check_call(['rm', '-rf', 'sum'])\n"
   ];
   MaybeMkFile[basedir <> "/integrate.py",
@@ -2234,16 +2235,16 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "THREADS ?= 1\n",
     "RUN ?=\n",
     "\n",
-    "compile.done: disteval/sum.json\n",
+    "compile.done: sum_pylink.so\n",
     "\tdate >$@\n",
-    (*"integrate: sum_value.m\n",*)
+    "integrate: sum_value.m\n",
     "\n",
-    "disteval/sum.json: compile.py\n",
+    "sum_pylink.so: compile.py\n",
     "\t${RUN} python3 compile.py\n",
-    "\n"(*,
-    "sum_value.m: disteval/sum.json invariants.txt\n",
+    "\n",
+    "sum_value.m: sum_pylink.so invariants.txt\n",
     "\ttouch -t 199001010000 $@\n",
-    "\t${RUN} python3 integrate.py $$(cat invariants.txt) >$@ 2>$@.log || rm -f $@\n"*)
+    "\t${RUN} python3 integrate.py $$(cat invariants.txt) >$@ 2>$@.log || rm -f $@\n"
   ];
 ]
 Options[SecDecPrepareSum] = {Order -> 0};
