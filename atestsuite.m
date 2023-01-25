@@ -10,6 +10,15 @@ Get["alibrary.m"];
  * ## Tests for [[utils.m]]
  *)
 
+FailUnless[SeriesOrderCoefficient[1/(2+x)+O[x]^2, -1] === 0];
+FailUnless[SeriesOrderCoefficient[1/(2+x)+O[x]^2, 0] === 1/2];
+FailUnless[SeriesOrderCoefficient[1/(2+x)+O[x]^2, 1] === -1/4];
+FailUnless[SeriesOrderCoefficient[1/(2+x)+O[x]^2, 2] === $Failed];
+FailUnless[SeriesOrderCoefficient[1+2/x+O[x]^2, -1] === 2];
+FailUnless[SeriesOrderCoefficient[1+2/x+O[x]^2, 0] === 1];
+FailUnless[SeriesOrderCoefficient[1+2/x+O[x]^2, 1] === 0];
+FailUnless[SeriesOrderCoefficient[1+2/x+O[x]^2, 2] === $Failed];
+
 FailUnless[FormatScientific[1.2, 6] === "1.20e0"];
 FailUnless[FormatScientific[-1.234, 6] === "-1.2e0"];
 FailUnless[FormatScientific[1.2, 4] === "1.e0"];
