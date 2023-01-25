@@ -13,9 +13,9 @@
  Diagram[[(* ID *) Dia[["<in_loop><field><end>",
 <back>"<out_loop><field><end>",<loops>,<diagram_index>]],
   (* F *) <sign><symmetry_factor>,
-  (* I *) {<in_loop> F[["<field>",<field_index>,<vertex_index>,<momentum>]],
+  (* I *) { <in_loop>F[["<field>",<field_index>,<vertex_index>,<momentum>]],
 <back><end><back> },
-  (* O *) {<out_loop> F[["<field>",<field_index>,<vertex_index>,<momentum>]],
+  (* O *) { <out_loop>F[["<field>",<field_index>,<vertex_index>,<momentum>]],
 <back><end><back> },
   (* P *) { <propagator_loop>
    P[["<field>", <dual-field_index>,<field_index>,
