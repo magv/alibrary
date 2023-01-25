@@ -2067,12 +2067,13 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order, pr
 (* Prepare pySecDec files for a sum of integrals with coefficients,
  * set up similarly to [[SecDecPrepare]]. *)
 SecDecPrepareSum[basedir_String, bases_List, integrals_List, coefficients_List, OptionsPattern[]] :=
-Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, order, prefactor, cache},
+Module[{name, basisid, bid2basis, indices, basis, realp, integral, coeff, p, m, dim, order, prefactor, cache},
   FailUnless[Length[coefficients] > 0];
   FailUnless[Length[coefficients[[1]]] === Length[integrals]];
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   EnsureDirectory[basedir];
   cache = <||>;
+  realp = Join[Table[basis["invariants"], {basis, bases}], OptionValue[ExtraRealParameters]] // Flatten // Union;
   MaybeMkFile[basedir <> "/compile.py",
     "#!/usr/bin/env python3\n",
     "import os\n",
@@ -2138,7 +2139,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
       "            replacement_rules = b", basis["id"], "_replacement_rules\n",
       "        ),\n",
       "        real_parameters = [",
-        basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+        realp // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
       "],\n",
       "        additional_prefactor = '",
         (* Convert from pySecDec to the physical normalization. *)
@@ -2199,7 +2200,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "            requested_orders=[", OptionValue[Order], "],\n",
     "            coefficients=[list(x) for x in zip(*coefficients)],\n",
     "            real_parameters=[",
-      basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+      realp // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
     "],\n",
     "            processes = threads\n",
     "        )\n",
@@ -2216,7 +2217,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "if __name__ == '__main__':\n",
     "    argmap = dict(arg.split('=') for arg in sys.argv[1:])\n",
     "    parameters = [",
-      basis["invariants"] // Map[{"float(argmap['", #, "'])"}&] // Riffle[#, ", "]&,
+      realp // Map[{"float(argmap['", #, "'])"}&] // Riffle[#, ", "]&,
     "]\n",
     "    threads = int(os.environ.get('THREADS', '1'))\n",
     "    libfile = './sum_pylink.so'\n",
@@ -2247,7 +2248,7 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
     "\t${RUN} python3 integrate.py $$(cat invariants.txt) >$@ 2>$@.log || rm -f $@\n"
   ];
 ]
-Options[SecDecPrepareSum] = {Order -> 0};
+Options[SecDecPrepareSum] = {Order -> 0, ExtraRealParameters -> {}};
 
 (* Write a single coefficient file in pySecDec syntax. It is
  * expected that overall regulator factors are factorized.
