@@ -169,6 +169,18 @@ SeriesTermCount[l_List] := Map[SeriesTermCount, l]
 (* Truncate the series to the leading term only. *)
 SeriesLeadingTerm[s_SeriesData] := If[s[[3]] === {}, s, s + O[s[[1]]]*s[[1]]^s[[4]]]
 
+(* Get the coefficient of a term in a series with a particular
+ * order of the expansion. *)
+SeriesOrderCoefficient[Verbatim[SeriesData][x_, x0_, l_List, n1_, n2_, d_], o_] :=
+  Which[
+    o < n1/d, 0,
+    o >= n2/d, $Failed,
+    o - n1/d >= Length[l], 0,
+    True, l[[o - n1/d + 1]]]
+SeriesOrderCoefficient[l_List, o_] := Map[SeriesOrderCoefficient[#, o]&, l]
+SeriesOrderCoefficient[o_] := SeriesOrderCoefficient[#, o]&
+
+
 (* Return the list of terms in an expression. Zero is considered
  * to have no terms. *)
 Terms[ex_Plus] := List @@ ex
