@@ -6,7 +6,7 @@
 #
 # Usage:
 #
-#     ./mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]
+#     mkdia.py [dia-]<incoming particles>-<outgoing particles>-<loop count>[.m]
 #
 # The list of particles is from `qgraf-modfile`. The style file is `qgraf-stylefile`.
 #
@@ -17,11 +17,12 @@ import sys
 import re
 import os
 
-process = "-".join(sys.argv[1:])
-m = re.match("(?:dia[-/]?)?([a-zA-Z]+)-([a-zA-Z]+)-([0-9]+)(?:.m)?", process)
+filename = "-".join(sys.argv[1:])
+process = os.path.basename(filename)
+m = re.match("(?:dia-)?([a-zA-Z]*)-([a-zA-Z]*)-([0-9]+)(?:.m)?", process)
 if m is None:
     print("Bad process format:", repr(process))
-    print("Usage: mkdia.py [dia-|dia/]<incoming particles>-<outgoing particles>-<loop count>[.m]")
+    print("Usage: mkdia.py [dia-]<incoming particles>-<outgoing particles>-<loop count>[.m]")
     exit(1)
 
 fieldsi, fieldso, loops = m.groups()
@@ -35,14 +36,15 @@ massless = "qQgA"
 opti = [f"--false=plink[{-1-2*i}]" for i, x in enumerate(fieldsi) if x in massless] if len(fieldsi) > 1 else []
 opto = [f"--false=plink[{-2-2*i}]" for i, x in enumerate(fieldso) if x in massless] if len(fieldso) > 1 else []
 
-os.execv("./qgraf.sh", [
-    "./qgraf.sh",
-    "--output={}".format(process),
-    "--style=qgraf-stylefile",
-    "--model=qgraf-modfile",
+base = os.path.dirname(sys.argv[0])
+os.execv(f"{base}/qgraf.sh", [
+    f"{base}/qgraf.sh",
+    f"--output={filename}",
+    f"--style={base}/qgraf-stylefile",
+    f"--model={base}/qgraf-modfile",
     "--in={}".format(", ".join(f"{f}[{m}]" for f, m in zip(fieldsi, momi))),
     "--out={}".format(", ".join(f"{f}[{m}]" for f, m in zip(fieldso, momo))),
-    "--loops={}".format(loops),
+    f"--loops={loops}",
     "--loop_momentum=l",
     "--options=",
     *opti,
