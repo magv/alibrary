@@ -38,6 +38,10 @@
 \tikzstyle{incoming scalar}=[-, style=scalar, draw=PaleEdgeColor]
 \tikzstyle{outgoing scalar}=[-, style=scalar, draw=PaleEdgeColor]
 
+\tikzstyle{massive scalar}=[-, draw=ScalarColor, line width=2.0pt, densely dashed]
+\tikzstyle{incoming massive scalar}=[-, style=massive scalar, draw=PaleEdgeColor]
+\tikzstyle{outgoing massive scalar}=[-, style=massive scalar, draw=PaleEdgeColor]
+
 \tikzstyle{vector}=[-, draw=VectorColor, line width=1pt, preaction={{draw=white,line width=2pt}}, line cap=rect, decorate, decoration=snake]
 \tikzstyle{incoming vector}=[-, style=vector, draw=PaleEdgeColor]
 \tikzstyle{outgoing vector}=[-, style=vector, draw=PaleEdgeColor]

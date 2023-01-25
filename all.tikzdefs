@@ -33,4 +33,4 @@
 \definecolor{VectorColor}{RGB}{176,36,39}
 \definecolor{ScalarColor}{RGB}{102,102,102}
 
-\tikzstyle{whitebg}=[preaction={{draw=white,line width=2pt,{Latex[length=0pt 2,width=0pt 1.05,bend]}-{Latex[length=0pt 2,width=0pt 1.05,bend]}}}]
+\tikzstyle{whitebg}=[preaction={{draw=white,line width=2pt,{Triangle Cap[length=4pt]}-{Triangle Cap[length=4pt]}}}]
