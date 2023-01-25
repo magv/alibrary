@@ -932,7 +932,7 @@ RunThroughForm[exprs_List, code_] :=
     ".end\n"
   ];
   Print["RunThroughForm: calling ", $FORM, " ", tmpsrc];
-  Run[$FORM, "-q", "-Z", "-M", "-l", tmpsrc]//TM;
+  Run["env FORMPATH='" <> $Apath <> "'", $FORM, "-q", "-Z", "-M", "-l", tmpsrc]//TM;
   Print["RunThroughForm: reading result (", FileByteCount[tmpdst]//FormatBytes, ")"];
   result = SafeGet[tmpdst]//TM;
   DeleteFile[{tmpsrc, tmpdst, tmplog}];
