@@ -58,7 +58,6 @@ And also the following auxiliary source files:
 * [doc.py], the documentation generator;
 * [kira.sh], the Kira command line wrapper;
 * [library.m], older code that is to be cleaned up and merged into [alibrary.m];
-* [mkdia.py], the higher-level diagram generator;
 * [qgraf.sh], the QGraf command line wrapper.
 
 Finally, the following files remain undocumented:

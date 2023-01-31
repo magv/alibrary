@@ -32,11 +32,10 @@ NLOOPS = 2;
 (* ## Diagrams
  *
  * Generate the diagrams with one incoming photon and one outgoing
- * photon with QGraf by the way of [[mkdia.py]].
+ * photon with QGraf.
  *)
 
-SafeRun[$Apath, "/mkdia.py dia-A-A-", NLOOPS, ".m"];
-diagrams = SafeGet[MkString["dia-A-A-", NLOOPS, ".m"]];
+diagrams = Diagrams[{"A"}, {"A"}, NLOOPS];
 Print["Loaded ", diagrams//Length, " diagrams"];
 
 (* One can now view the graphical representation of these diagrams
@@ -223,18 +222,16 @@ FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
  * [kira]: https://kira.hepforge.org/
  *)
 
-amplitudesBibp = amplitudesB // KiraIBP[bases];
+amplitudesBibp = amplitudesB // KiraIBP[bases, ReplaceByOne->mt2];
 
-(* Note that at the moment the mass reconstruction is disabled
- * because it’s overly slow in Kira; the first of the basis
- * invariants is set to 1 automatically during reduction. We’ll
- * take this into account and fix the rest of the amplitude this
- * way too.
- *
- * Hopefully this is temporary.
+(* Here we use ReplaceByOne to speed up the IBP reduction. Note
+ * that Kira can restore the powers of mt2 after the reduction
+ * is over, but this is fairly slow at the moment. For this
+ * reason we'll skip that, and update the rest of the amplitude
+ * to this convention too.
  *)
 
-amplitudesBibp = amplitudesBibp // ReplaceAll[bases[[1,"invariants",1]]->1];
+amplitudesBibp = amplitudesBibp // ReplaceAll[mt2->1];
 
 (* The full amplitude is just the sum of the diagram amplitudes.
  *)

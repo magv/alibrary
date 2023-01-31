@@ -6,8 +6,36 @@
  * coupled to the heavy quarks (H).
  *)
 
-$MkdiaArguments = "--model=qgraf-modfile --massless=qQgA";
-(*$Particles = "AHZgqQtTcCsS"*)
+$QGrafModel = "
+# Photons
+[A, A, +, external]
+# Higgs'
+[H, H, +, external]
+# Z bosons
+[Z, Z, +, external]
+# Gluons
+[g, g, +]
+# Quarks & antiquarks
+[q, Q, -]
+# Heavy quarks & antiquarks
+[t, T, -]
+# Ghosts (gluonic)
+[c, C, -]
+# Vertices
+[A, q, Q]
+[Z, q, Q]
+[g, q, Q]
+[g, c, C]
+[g, g, g]
+[g, g, g, g]
+[A, t, T]
+[Z, t, T]
+[g, t, T]
+[H, t, T]
+";
+
+$MasslessFieldPattern = "q"|"Q"|"g"|"A";
+
 $FermionFieldPattern = "q"|"Q"|"c"|"C"|"t"|"T";
 
 (* Propagators *)
@@ -21,7 +49,6 @@ Amplitude[P["g", fi1_, fi2_, _, _, p_]] :=
   -I deltaadj[fi1, fi2] (deltalor[fi1, fi2] den[p] -
     Xi momentum[p, lor[fi1]] momentum[p, lor[fi2]] den[p]^2)
 Amplitude[P["H", fi1_, fi2_, _, _, p_]] := I den[p]
-Amplitude[P["s"|"S", fi1_, fi2_, _, _, p_]] := I den[p]
 Amplitude[P["c", fi1_, fi2_, _, _, p_]] := I deltaadj[fi1, fi2] den[p]
 
 (* Vertices *)
@@ -67,6 +94,25 @@ Amplitude[V[vi_, "gggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] :=
   ]
 Amplitude[V[_, "HtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   gH deltaflvt[fi2, fi3] deltafun[fi2, fi3] gammachain[spn[fi3], spn[fi2]]
+
+(* Final states *)
+CutAmplitudeGlue[F[f:"H", fi_, _, mom_], F[f_, fi_, _, mom_]] := 1
+CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -g_mn d_ab *)
+  -delta[lor[fi], lor[fi] // AmpConjugate] delta[adj[fi], adj[fi] // AmpConjugate]
+(* The -1 here makes it so that the external ghost pair contributions
+ * are subtracted. *)
+CutAmplitudeGlue[F[f:"c", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -1 * d_ab *)
+  -delta[adj[fi], adj[fi] // AmpConjugate]
+CutAmplitudeGlue[F[f:"C", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* d_ab *)
+  delta[adj[fi], adj[fi] // AmpConjugate]
+CutAmplitudeGlue[F[f:"Q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
+  gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] delta[fun[fi], fun[fi] // AmpConjugate] deltaf[flv[fi], flv[fi] // AmpConjugate]
+CutAmplitudeGlue[F[f:"q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
+  gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] delta[fun[fi], fun[fi] // AmpConjugate] deltaf[flv[fi], flv[fi] // AmpConjugate]
+CutAmplitudeGlue[F[f:"T", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash - mt1) d_ij d_f1f2 *)
+  (gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] - mt1 gammachain[spn[fi], spn[fi] // AmpConjugate]) delta[fun[fi], fun[fi] // AmpConjugate] deltaft[flv[fi], flv[fi] // AmpConjugate]
+CutAmplitudeGlue[F[f:"t", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash + mt1) d_ij d_f1f2 *)
+  (gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] + mt1 gammachain[spn[fi] // AmpConjugate, spn[fi]]) delta[fun[fi], fun[fi] // AmpConjugate] deltaft[flv[fi], flv[fi] // AmpConjugate]
 
 (* Field styles for [[DiagramToGraphviz]].
  *)

@@ -1,7 +1,6 @@
 (* # Displaying diagrams
  * 
- * Lets say we've generated some diagrams with e.g. [[mkdia.py]],
- * like so:
+ * Lets say we've generated some diagrams, like so:
  *)
 
 SetOptions[$Output, PageWidth -> 65];
@@ -10,8 +9,7 @@ $HistoryLength = 2;
 Get["alibrary.m"];
 Get[$Apath <> "/amodel-qcd.m"];
 
-SafeRun[$Apath, "/mkdia.py dia-A-A-2.m"];
-diagrams = SafeGet[MkString["dia-A-A-2.m"]];
+diagrams = Diagrams[{"A"}, {"A"}, 2];
 
 (* Normally the diagrams would now be passed into [[Amplitude]]
  * to apply Feyman rules to them; there are however two reasons

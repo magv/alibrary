@@ -42,7 +42,7 @@ Get[$Apath <> "/library.m"];
  * All the information here is directly as QGraf provides it,
  * just packaged into a Mathematica expression.
  *
- * To generate diagrams conveniently, use [[mkdia.py]]. Less
+ * To generate diagrams conveniently, use [[Diagrams]]. Less
  * convenient is [[qgraf.sh]]. The least conveninet is direct
  * `qgraf` invocation.
  *)
@@ -93,6 +93,52 @@ Module[{edges, SS, II, EE},
  *)
 DiagramSign[d_Diagram, fermionpattern_] := (-1)^DiagramClosedLoops[d, fermionpattern]
 DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
+
+(* Return a list of diagrams produced by QGraf with the given
+ * incoming and outgoing fields and the given number of loops.
+ *
+ * The QGraf model file and the massless particle pattern
+ * are specified via the global variables $QGrafModel and
+ * $MasslessFieldPattern. These can be overriden via the QGrafModel
+ * and the MasslessFieldPattern options.
+ *)
+Diagrams[fieldsi_List, fieldso_List, loops_Integer, OptionsPattern[]] :=
+Module[{model, m0pat, tmpmodel, tmpoutput, momi, momo, i, result},
+  model = Replace[OptionValue[QGrafModel], None -> $QGrafModel];
+  m0pat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
+  FailUnless[MatchQ[model, _String]];
+  tmpmodel = MkTemp["qgraf-model", ""];
+  MkFile[tmpmodel, model];
+  tmpoutput = MkTemp["qgraf", ".out.m"];
+  momi = If[Length[fieldsi] == 1, {"q"}, Table["q" <> ToString[i], {i, Length[fieldsi]}]];
+  momo = If[Length[fieldso] == 1, {"q"}, Table["p" <> ToString[i], {i, Length[fieldso]}]];
+  SafeRun[MkString["'", $Apath, "/qgraf.sh' ",
+    "--output='", tmpoutput, "' ",
+    "--style='", $Apath, "/qgraf-stylefile' ",
+    "--model='", tmpmodel, "' ",
+    "--in='", MapThread[{#1, "[", #2, "]"}&, {fieldsi, momi}] // Riffle[#, ", "]&, "' ",
+    "--out='", MapThread[{#1, "[", #2, "]"}&, {fieldso, momo}] // Riffle[#, ", "]&, "' ",
+    "--loops='", loops, "' ",
+    "--loop_momentum='l' ",
+    "--options='' ",
+    If[Length[fieldso] > 1,
+      Table[
+        If[MatchQ[fieldsi[[i]], m0pat], {"'--false=plink[", 1-2*i, "]' "}, ""],
+        {i, Length[fieldsi]}],
+      ""],
+    If[Length[fieldso] > 1,
+      Table[
+        If[MatchQ[fieldso[[i]], m0pat], {"'--false=plink[", -2*i, "]' "}, ""],
+        {i, Length[fieldso]}],
+      ""]
+  ]];
+  result = SafeGet[tmpoutput];
+  DeleteFile[tmpmodel];
+  DeleteFile[tmpoutput];
+  result
+]
+Options[Diagrams] = {QGrafModel -> None, MasslessFieldPattern -> None};
+
 
 (* ## Diagrams to graphs
  *)
@@ -1739,9 +1785,11 @@ KiraMasterIntegrals[confdir_String] :=
  * Note that usually it’s not the best idea to run Kira from
  * Mathematica. It is possible though.
  *)
-KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
+KiraIBP[ex_, bases_List, OptionsPattern[]] := Module[{blist, confdir, result},
   confdir = MkTempDirectory["kira", ""];
-  MkKiraConfig[confdir, bases, ex // CaseUnion[_B]];
+  MkKiraConfig[confdir, bases, ex // CaseUnion[_B],
+    PreferredMasters -> OptionValue[PreferredMasters],
+    ReplaceByOne -> OptionValue[ReplaceByOne]];
   If[Run[MkString["make -C '", confdir, "'"]] // TM // # =!= 0&,
     EnsureNoDirectory[confdir];
     Error["Failed to run kira in " <> confdir];
@@ -1750,7 +1798,10 @@ KiraIBP[ex_, bases_List] := Module[{blist, confdir, result},
   EnsureNoDirectory[confdir];
   result
 ]
-KiraIBP[bases_List] := KiraIBP[#, bases]&
+KiraIBP[bases_List, OptionsPattern[]] := KiraIBP[#, bases, 
+    PreferredMasters -> OptionValue[PreferredMasters],
+    ReplaceByOne -> OptionValue[ReplaceByOne]]&;
+Options[KiraIBP] = {PreferredMasters -> {}, ReplaceByOne -> None};
 
 (*
  * ## FIRE & LiteRed interface for IBP reduction
