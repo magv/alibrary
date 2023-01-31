@@ -52,6 +52,7 @@ and consists of the following main annotated source files:
 * [utils.m], the generic Mathematica helper functions;
 * [atestsuite.m], the test suite for the above;
 * [amodel-qcd.m], the QCD-like Feynman rules.
+* [amodel-scalar.m], Feynman rules for a simple scalar theory.
 
 And also the following auxiliary source files:
 
@@ -66,7 +67,6 @@ Finally, the following files remain undocumented:
 * all.tikzdefs;
 * all.tikzstyles;
 * library.frm;
-* qgraf-modfile;
 * qgraf-stylefile;
 * tempwrap.
 
@@ -77,6 +77,7 @@ gradually improve it.
 [alibrary.m]: https://magv.github.io/alibrary/alibrary.html
 [atestsuite.m]: https://magv.github.io/alibrary/atestsuite.html
 [amodel-qcd.m]: https://magv.github.io/alibrary/amodel-qcd.html
+[amodel-scalar.m]: https://magv.github.io/alibrary/amodel-scalar.html
 [doc.py]: https://magv.github.io/alibrary/doc.html
 [kira.sh]: https://magv.github.io/alibrary/kira.html
 [library.m]: https://magv.github.io/alibrary/library.html
