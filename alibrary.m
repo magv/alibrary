@@ -725,15 +725,15 @@ Module[{extmom, sprules, i, j, sps, v1, v2, vars, OLD, NEW, x},
 
 (* Return a map from the invariants of a basis to their mass
  * dimensions. *)
-IBPBasisMassDimensions[basis_Association] :=
+IBPBasisMassDimensions[basis_Association] := IBPBasisMassDimensions[{basis}]
+IBPBasisMassDimensions[bases_List] :=
   {
-    basis[["sprules", ;;, 2]],
-    basis[["denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
+    bases[[;;, "sprules", ;;, 2]],
+    bases[[;;, "denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
   } //
   Flatten //
   DeleteCases[0] //
   VariableDimensions[#, 2]&
-
 
 (* Return a copy of the basis, but with external momenta swapped
  * inside the denominator list. No change otherwise, i.e. the
@@ -1296,7 +1296,7 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
       sector2r[sector] = Max[r, sector2r[sector] /. _Missing -> 0];
       sector2d[sector] = Max[d, sector2d[sector] /. _Missing -> 0];
       (* Note: s=0 makes Kira produce false masters. It’s not
-       * clear, if we should only fix s=0 case, or if we need
+       * clear if we should only fix s=0 case, or if we need
        * to add +1 to all s. Currently we’re doing the former
        * inside [[MkKiraJobsYaml]].
        *)
@@ -1304,7 +1304,6 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
       ,
       {int, idxlist}
   ];
-  (*Print["* Sectors by order (s + r)"];*)
   sectors = {};
   done = {};
   Do[
@@ -1314,10 +1313,8 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
           If[MatchQ[i, _Missing],
               AppendTo[done, sector];
               AppendTo[sectors, sector];
-              (*Print["Unique sector: ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector], " (o=", o, ")"];*)
               ,
               i = i[[1]];
-              (*Print["Subsector of ", done[[i]], ": ", sector, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];*)
               sector2r[done[[i]]] = Max[sector2r[sector], sector2r[done[[i]]]];
               sector2d[done[[i]]] = Max[sector2d[sector], sector2d[done[[i]]]];
               sector2s[done[[i]]] = Max[sector2s[sector], sector2s[done[[i]]]];
@@ -1328,13 +1325,6 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
       ,
       {o, o2sectors // Keys // Sort // Reverse}
   ];
-  (*
-  Print["Final sectors:"];
-  Do[
-    Print["- ", sector, " ", IntegerDigits[sector, 2, Length[First[idxlist]]]//Reverse, ", nprops=", DigitCount[sector, 2, 1], ", r=", sector2r[sector], ", s=", sector2s[sector], ", d=", sector2d[sector]];
-    ,
-    {sector, sectors}];
-  *)
   Table[
     <|"id" -> sector, "idx" -> sector2i[sector], "r" -> sector2r[sector], "s" -> sector2s[sector], "d" -> sector2d[sector]|>
     ,
@@ -1414,7 +1404,7 @@ Module[{COEF},
  * the given integrals under the given bases.
  *)
 MkKiraConfig[dirname_, bases_List, blist_, OptionsPattern[]] :=
-Module[{bid, bids, bid2topsector, idxlist, massdims},
+Module[{bid, bids, bid2topsector, idxlist},
   EnsureDirectory[dirname];
   EnsureDirectory[dirname <> "/config"];
   bids = blist // CaseUnion[B[bid_, ___] :> bid];
@@ -1422,13 +1412,7 @@ Module[{bid, bids, bid2topsector, idxlist, massdims},
     bid -> (blist // CaseUnion[B[bid, idx__] :> {idx}] // TopSectors // Sort)
     ,
     {bid, bids}] // Association;
-  massdims = {
-      bases[[;;, "sprules", ;;, 2]],
-      bases[[;;, "denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
-    } //
-    Flatten //
-    DeleteCases[0] //
-    VariableDimensions[#, 2]&;
+  massdims = IBPBasisMassDimensions[bases];
   FailUnless[Sort[massdims[[;;,1]]] === Sort[bases[[1, "invariants"]]]];
   massdims = bases[[1, "invariants"]] // Map[(# -> (# /. massdims))&];
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
@@ -1501,13 +1485,7 @@ Module[{bid, bids, bid2topsector, idxlist, massdims, sector, nprops, r, s},
     bid -> (idxlist // TopSectors // Sort)
     ,
     {bid, bids}] // Association;
-  massdims = {
-      bases[[;;, "sprules", ;;, 2]],
-      bases[[;;, "denominators"]] // Map[Cases[den[_, m_, ___] :> m]]
-    } //
-    Flatten //
-    DeleteCases[0] //
-    VariableDimensions[#, 2]&;
+  massdims = IBPBasisMassDimensions[bases];
   FailUnless[Sort[massdims[[;;,1]]] === Sort[bases[[1, "invariants"]]]];
   massdims = bases[[1, "invariants"]] // Map[(# -> (# /. massdims))&];
   MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
@@ -1760,7 +1738,7 @@ LoadKiraMap[filenames_List] := filenames // Map[LoadKiraMap] // Apply[Join]
 
 (* Extract the list of master integrals from Kira results.
  *)
-KiraMasterIntegrals[confdir_String] :=
+LoadKiraMasters[confdir_String] :=
   FileNames[confdir <> "/results/b*/masters"] //
   Map[
     ReadString /*
@@ -1802,6 +1780,61 @@ KiraIBP[bases_List, OptionsPattern[]] := KiraIBP[#, bases,
     PreferredMasters -> OptionValue[PreferredMasters],
     ReplaceByOne -> OptionValue[ReplaceByOne]]&;
 Options[KiraIBP] = {PreferredMasters -> {}, ReplaceByOne -> None};
+
+(* Create the Kira configuration directory for [[KiraMasters]].
+ *)
+MkKiraMastersConfig[dirname_String, bases_List, maxdots_Integer, maxnums_Integer, intordering_Integer] :=
+Module[{idx},
+  EnsureDirectory[dirname];
+  EnsureDirectory[dirname <> "/config"];
+  MkKiraKinematicsYaml[dirname <> "/config/kinematics.yaml",
+    bases[[1,"externalmom"]],
+    bases[[1,"sprules"]],
+    IBPBasisMassDimensions[bases],
+    bases[[1, "invariants", 1]]];
+  MkKiraIntegralFamiliesYaml[dirname <> "/config/integralfamilies.yaml", bases];
+  MaybeMkFile[dirname <> "/domasters.yaml",
+    "jobs:\n",
+    " - reduce_sectors:\n",
+    "    reduce:\n",
+    Table[
+      idx = basis["denominators"] // MapReplace[den[_,_,irr] -> 0, _ -> 1];
+      {"     - {topologies: [", KiraBasisName[basis["id"]], "], sectors: [b",
+        idx, "], r: ", Count[idx,1] + maxdots, ", s: ", maxnums, "}\n"}
+      ,
+      {basis, bases}],
+    "    select_integrals:\n",
+    "     select_mandatory_recursively:\n",
+    Table[
+      idx = basis["denominators"] // MapReplace[den[_,_,irr] -> 0, _ -> 1];
+      {"      - {topologies: [", KiraBasisName[basis["id"]], "], sectors: [b",
+        idx, "], r: ", Count[idx,1] + maxdots, ", s: ", maxnums, ", d: ", maxdots, "}\n"}
+      ,
+      {basis, bases}],
+    "    integral_ordering: ", intordering, "\n",
+    "    run_symmetries: true\n",
+    "    run_initiate: true\n",
+    "    run_triangular: false\n",
+    "    run_back_substitution: false\n",
+    "    run_firefly: false\n"
+  ];
+]
+
+(* Run Kira to determine a set of master integrals in a given
+ * basis. The masters are selected according to Kira's integral
+ * ordering setting (an integer from 1 to 8; see Kira's documentation
+ * for what these mean).
+ *)
+KiraMasters[bases_List, maxdots_Integer, maxnums_Integer, OptionsPattern[]] :=
+Module[{dirname, result},
+  dirname = MkTemp["kira", ".masters"];
+  MkKiraMastersConfig[dirname, bases, maxdots, maxnums, OptionValue[KiraIntegralOrdering]];
+  SafeRun[MkString["cd '", dirname, "' && ", OptionValue[Kira], " domasters.yaml"]];
+  result = LoadKiraMasters[dirname];
+  EnsureNoDirectory[dirname];
+  result
+]
+Options[KiraMasters] = {Kira -> "kira", KiraIntegralOrdering -> 8};
 
 (*
  * ## FIRE & LiteRed interface for IBP reduction
