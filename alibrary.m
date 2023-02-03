@@ -244,6 +244,9 @@ DiagramToGraphviz[CutDiagram[
    ]
 ]
 
+(* Default Graphviz style for all fields. Styles for specific
+ * fields should be defined by the model files.
+ *)
 FieldGraphvizColor[field_] = 12;
 
 (* Use Graphviz to convert a diagram into a `Graphics` object.
@@ -394,6 +397,9 @@ Module[{pstyles, ni, no, coords, scale, external},
 ]
 Options[DiagramToTikZ] = {PropagatorStyles -> None};
 
+(* Default TikZ style for all fields. Styles for specific fields
+ * should be defined by the model files.
+ *)
 FieldTikZStyle[field_] = "edge";
 
 (* Create a TikZ graph file from the given edges and labels.
