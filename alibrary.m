@@ -2334,6 +2334,110 @@ Module[{name, basisid, bid2basis, indices, basis, realp, integral, coeff, p, m, 
 ]
 Options[SecDecPrepareSum] = {Order -> 0, ExtraRealParameters -> {}};
 
+(* Return the leading expansion orders in 'eps' of a list of
+ * integrals computed via pySecDec.
+ *)
+SecDecLeadingOrders[base_List, integrals_List, OptionsPattern[]] :=
+Module[{bid2basis, tmpscript, tmpresult},
+  bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
+  tmpscript = MkTemp["psdlo", ".py"];
+  tmpresult = tmpscript <> ".m";
+  MaybeMkFile[tmpscript,
+    "#!/usr/bin/env python3\n",
+    "import os\n",
+    "import subprocess\n",
+    "import tempfile\n",
+    "import json\n",
+    "import pySecDec as psd\n",
+    "if __name__ == '__main__':\n",
+    "    terms = []\n",
+    Table[
+      {name, integral, dim, order, prefactor} = integrals[[i]] // Replace[{
+          pre_. * b_B :> {SecDecIntegralName[b], b, 4, 0, pre},
+          pre_. * int:DimShift[b_B, n_] :> {SecDecIntegralName[int], b, 4 + n, 0, pre},
+          {pre_. * b_B, ord_} :> {SecDecIntegralName[b], b, 4, ord, pre},
+          {pre_. * int:DimShift[b_B, n_], ord_} :> {SecDecIntegralName[int], b, 4+n, ord, pre}
+      }];
+      basisid = integral[[1]];
+      indices = integral[[2;;]] // Apply[List];
+      basis = bid2basis[basisid];
+      {
+      "    loopint = psd.loop_integral.LoopIntegralFromPropagators(\n",
+      "      loop_momenta = ['", basis["loopmom"] // Riffle[#, "','"]&, "'],\n",
+      "      external_momenta = ['", basis["externalmom"] // Riffle[#, "','"]&, "'],\n",
+      "      regulator = 'eps',\n",
+      "      propagators = [\n",
+      basis["denominators"] /. {
+        den[p_] :> {"        '(", p//CForm, ")^2'"},
+        den[p_,m_,___] :> {"        '(", p//CForm, ")^2-", m//CForm, "'"}
+      } // Riffle[#, ",\n"]&,
+      "\n",
+      "      ],\n",
+      "      powerlist = [", indices // Riffle[#, ","]&, "],\n",
+      "      dimensionality='", dim, "-2*eps',\n",
+      "      replacement_rules = [\n  ",
+      basis["sprules"] //
+        ReplaceAll[sp -> (sp /* Sort)] //
+        Union //
+        MapReplace[
+          (sp[p1_, p2_] -> v_) :> {"      ('", p1//InputForm, "*", p2//InputForm, "', '", v//InputForm, "')"}
+        ] // Riffle[#, ",\n  "]&,
+      "\n      ]\n",
+      "    )\n",
+      "    terms.append(psd.LoopPackage(\n",
+      "      name = 'integral", i, "',\n",
+      "      loop_integral = loopint,\n",
+      "      real_parameters = [",
+        basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+      "],\n",
+      "      additional_prefactor = '",
+        (* Convert from pySecDec to the physical normalization. *)
+        (I*Pi^(dim/2-eps)/(2*Pi)^(dim-2*eps))^Length[basis["loopmom"]] * prefactor // Factor // ToSympy,
+      "',\n",
+      "      decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
+      "      use_dreadnaut = True,\n",
+      "      requested_order = ", order, ",\n",
+      "      processes = 1,\n",
+      "      form_optimization_level = 4,\n",
+      "      form_work_space = '100M',\n",
+      "      form_threads = 1,\n",
+      "      contour_deformation = False\n",
+      "    ))\n"
+      }
+      ,
+      {i, Length[integrals]}],
+    "    with tempfile.TemporaryDirectory(prefix='psd') as tmp:\n",
+    "        os.chdir(tmp)\n",
+    "        psd.sum_package(\n",
+    "            'sum',\n",
+    "            terms,\n",
+    "            regulators=['eps'],\n",
+    "            requested_orders=[", OptionValue[MaxOrder], "],\n",
+    "            real_parameters=[",
+      bases[[;;,"invariants"]] // Apply[Join] // Union // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+    "],\n",
+    "            processes = ", OptionValue[Threads], "\n",
+    "        )\n",
+    "        orders = []\n",
+    "        for i in range(", Length[integrals], "):\n",
+    "            with open(f'sum/integral{i+1}/disteval/integral{i+1}.json', 'r') as f:\n",
+    "                desk = json.load(f)\n",
+    "            if desk['orders']:\n",
+    "                orders.append(desk['lowest_orders'][0] + desk['prefactor_lowest_orders'][0])\n",
+    "            else:\n",
+    "                orders.append(", OptionValue[MaxOrder], ")\n",
+    "        with open('", tmpresult, "', 'w') as f:\n",
+    "            f.write('{' + ','.join(map(str, orders)) + '}')\n"
+  ];
+  If[Run["python3 '" <> tmpscript <> "' >/dev/null"] =!= 0,
+    Error["pySecDec script failed\n"];
+  ];
+  results = Get[tmpresult];
+  DeleteFile[{tmpscript, tmpresult}];
+  results
+]
+Options[SecDecLeadingOrders] = {Threads -> 2, MaxOrder -> 1};
+
 (* Write a single coefficient file in pySecDec syntax. It is
  * expected that overall regulator factors are factorized.
  *)
