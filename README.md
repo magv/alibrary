@@ -58,8 +58,7 @@ And also the following auxiliary source files:
 
 * [doc.py], the documentation generator;
 * [kira.sh], the Kira command line wrapper;
-* [library.m], older code that is to be cleaned up and merged into [alibrary.m];
-* [qgraf.sh], the QGraf command line wrapper.
+* [library.m], older code that is to be cleaned up and merged into [alibrary.m].
 
 Finally, the following files remain undocumented:
 
@@ -82,7 +81,6 @@ gradually improve it.
 [kira.sh]: https://magv.github.io/alibrary/kira.html
 [library.m]: https://magv.github.io/alibrary/library.html
 [mkdia.py]: https://magv.github.io/alibrary/mkdia.html
-[qgraf.sh]: https://magv.github.io/alibrary/qgraf.html
 [utils.m]: https://magv.github.io/alibrary/utils.html
 
 Additionally, the author gave a talk at [CAPP 2021] about

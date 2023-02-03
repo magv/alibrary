@@ -42,9 +42,7 @@ Get[$Apath <> "/library.m"];
  * All the information here is directly as QGraf provides it,
  * just packaged into a Mathematica expression.
  *
- * To generate diagrams conveniently, use [[Diagrams]]. Less
- * convenient is [[qgraf.sh]]. The least conveninet is direct
- * `qgraf` invocation.
+ * To generate diagrams conveniently, use [[Diagrams]].
  *)
 
 (* Because `Diagram[]` objects are not `Association`s, here are
@@ -103,42 +101,43 @@ DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
  * and the MasslessFieldPattern options.
  *)
 Diagrams[fieldsi_List, fieldso_List, loops_Integer, OptionsPattern[]] :=
-Module[{model, m0pat, tmpmodel, tmpoutput, momi, momo, i, result},
+Module[{model, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
   model = Replace[OptionValue[QGrafModel], None -> $QGrafModel];
-  m0pat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
+  qgraf = Replace[OptionValue[QGraf], None -> $QGraf];
+  nomasspat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
   FailUnless[MatchQ[model, _String]];
-  tmpmodel = MkTemp["qgraf-model", ""];
-  MkFile[tmpmodel, model];
-  tmpoutput = MkTemp["qgraf", ".out.m"];
+  tmpdir = MkTemp["qgraf", ""];
+  EnsureDirectory[tmpdir];
+  CopyFile[$Apath <> "/qgraf-stylefile", tmpdir <> "/stylefile"];
+  MkFile[tmpdir <> "/modelfile", model];
   momi = If[Length[fieldsi] == 1, {"q"}, Table["q" <> ToString[i], {i, Length[fieldsi]}]];
   momo = If[Length[fieldso] == 1, {"q"}, Table["p" <> ToString[i], {i, Length[fieldso]}]];
-  SafeRun[MkString["'", $Apath, "/qgraf.sh' ",
-    "--output='", tmpoutput, "' ",
-    "--style='", $Apath, "/qgraf-stylefile' ",
-    "--model='", tmpmodel, "' ",
-    "--in='", MapThread[{#1, "[", #2, "]"}&, {fieldsi, momi}] // Riffle[#, ", "]&, "' ",
-    "--out='", MapThread[{#1, "[", #2, "]"}&, {fieldso, momo}] // Riffle[#, ", "]&, "' ",
-    "--loops='", loops, "' ",
-    "--loop_momentum='l' ",
-    "--options='' ",
+  MkFile[tmpdir <> "/qgraf.dat",
+    "output='output.m';\n",
+    "style='stylefile';\n",
+    "model='modelfile';\n",
+    "in=", MapThread[{#1, "[", #2, "]"}&, {fieldsi, momi}] // Riffle[#, ", "]&, ";\n",
+    "out=", MapThread[{#1, "[", #2, "]"}&, {fieldso, momo}] // Riffle[#, ", "]&, ";\n",
+    "loops=", loops, ";\n",
+    "loop_momentum=l;\n",
+    "options=;\n",
     If[Length[fieldso] > 1,
       Table[
-        If[MatchQ[fieldsi[[i]], m0pat], {"'--false=plink[", 1-2*i, "]' "}, ""],
+        If[MatchQ[fieldsi[[i]], nomasspat], {"false=plink[", 1-2*i, "];\n"}, ""],
         {i, Length[fieldsi]}],
       ""],
     If[Length[fieldso] > 1,
       Table[
-        If[MatchQ[fieldso[[i]], m0pat], {"'--false=plink[", -2*i, "]' "}, ""],
+        If[MatchQ[fieldso[[i]], nomasspat], {"false=plink[", -2*i, "];\n"}, ""],
         {i, Length[fieldso]}],
       ""]
-  ]];
-  result = SafeGet[tmpoutput];
-  DeleteFile[tmpmodel];
-  DeleteFile[tmpoutput];
+  ];
+  SafeRun[MkString["cd '", tmpdir, "' && '", qgraf, "'"]];
+  result = SafeGet[tmpdir <> "/output.m"];
+  EnsureNoDirectory[tmpdir];
   result
 ]
-Options[Diagrams] = {QGrafModel -> None, MasslessFieldPattern -> None};
-
+Options[Diagrams] = {QGraf -> None, QGrafModel -> None, MasslessFieldPattern -> None};
 
 (* ## Diagrams to graphs
  *)
