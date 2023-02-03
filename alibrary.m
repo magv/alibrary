@@ -2738,6 +2738,44 @@ BDiff[basis_Association, inv_Symbol] := BDiff[#, basis, inv]&
 (* ## Amplitudes
  *)
 
+ClearAll[Amplitude];
+(* Convert a diagram into an amplitude.
+ *
+ * Only the default cases are here; all actual Feynman rules are
+ * supplied by the model files.
+ *)
+Amplitude[
+  dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]] := Flatten[{
+    DiagramSign[dia, $FermionFieldPattern],
+    Abs[factor],
+    propagators // Map[Amplitude],
+    vertices // Map[Amplitude]
+  }] // Apply[Times]
+Amplitude[P[field_, fi1_, fi2_, _, _, p_]] :=
+  Error["No Feynman rules for the propagator of ", field]
+Amplitude[V[_, fields_, ___]] :=
+  Error["No Feynman rules for the vertex ", fields]
+Amplitude[x__] := Error["Don't know an amplitude for: ", x]
+
+ClearAll[CutAmplitudeGlue];
+(* Take two diagrams with the same final states and return an
+ * amplitude factor (i.e. delta functions) that join the outgoing
+ * fields.
+ * Only the default cases are here; all actual Feynman rules are
+ * supplied by the model files.
+ *)
+CutAmplitudeGlue[f1_, f2_] := Error["Can't connect these cut lines: ", f1, " and ", f2]
+CutAmplitudeGlue[
+  dia1:Diagram[id1_, factor1_, ifields1_List, ofields1_List, propagators1_List, vertices1_List],
+  dia2:Diagram[id2_, factor2_, ifields2_List, ofields2_List, propagators2_List, vertices2_List]
+] := (
+  FailUnless[ofields1[[;;,1]] === ofields2[[;;,1]]];
+  Times[
+    MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times],
+    ofields1[[;;,1]] // PositionIndex // Values // Map[Length /* Factorial] // 1/Times@@# &
+  ]
+)
+
 (* Compute the sum over the final state particle states (i.e.
  * the spin sum and the polarization sum) of a product of two
  * diagrams, the second being complex-conjugated.

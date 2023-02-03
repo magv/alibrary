@@ -168,79 +168,11 @@ deltafun[a_, b_] := delta[fun[a], fun[b]]
 deltaadj[a_, b_] := delta[adj[a], adj[b]]
 deltalor[a_, b_] := delta[lor[a], lor[b]]
 
-ClearAll[Amplitude];
-(* The definitions of the actual amplitudes for Amplitude[Propagators *)
-Amplitude[P[field_, fi1_, fi2_, _, _, p_]] :=
-  Error["No Feynman rules for the propagator of ", field]
-(* Vertices *)
-Amplitude[V[_, fields_, ___]] :=
-  Error["No Feynman rules for the vertex ", fields]
-(* Diagrams *)
-Amplitude[
-  dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]] := Flatten[{
-    DiagramSign[dia, $FermionFieldPattern],
-    Abs[factor],
-    propagators // Map[Amplitude],
-    vertices // Map[Amplitude]
-    (*ifields // Map[AmplitudeIF],
-    ofields // Map[AmplitudeOF]*)
-  }] // Apply[Times]
-(* Default Case *)
-Amplitude[x__] := Error["Don't know an amplitude for: ", x]
-(* Cut Line Joins Between Outgoing Fields *)
-ClearAll[CutAmplitudeGlue]
-CutAmplitudeGlue[F[f:"H", fi_, _, mom_], F[f_, fi_, _, mom_]] := 1
-CutAmplitudeGlue[F[f:"s"|"S", fi_, _, mom_], F[f_, fi_, _, mom_]] := 1
-(*
-CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -g_mn d_ab *)
-  -delta[lor[fi], lor[fi] // AmpConjugate] delta[adj[fi], adj[fi] // AmpConjugate]
-*)
-(*
-CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (*  d_ab (-g_mn + (pm pn)/p^2) *)
-Module[{mu = lor[fi], nu = lor[fi] // AmpConjugate},
-  delta[adj[fi], adj[fi] // AmpConjugate] (
-    -delta[mu, nu] + Xi2 momentum[mom, mu] momentum[mom, nu] den[mom,0,cut]
-  )
-]
-*)
-CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (*  d_ab (-g_mn + (pm kn + pn km)/p.k; where k.k = 0 *)
-Module[{mu = lor[fi], nu = lor[fi] // AmpConjugate, k = placeholder[mom]},
-  delta[adj[fi], adj[fi] // AmpConjugate] (
-    - delta[mu, nu]
-    (*+ Xi2 momentum[mom, mu] momentum[mom, nu] den[mom,0,cut]*)
-    (*+ Xi3 (momentum[mom, mu] momentum[k, nu] + momentum[mom, nu] momentum[k, mu]) 2 denplaceholder[mom]*)
-    (* - Xi4 dot[k, k] momentum[mom, mu] momentum[mom, nu] 4 denplaceholder[mom]^2 *)
-  )
-]
-(* The -1 here makes it so that the external ghost pair contributions
- * are subtracted. *)
-CutAmplitudeGlue[F[f:"c", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -1 * d_ab *)
-  -delta[adj[fi], adj[fi] // AmpConjugate]
-CutAmplitudeGlue[F[f:"C", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* d_ab *)
-  delta[adj[fi], adj[fi] // AmpConjugate]
-CutAmplitudeGlue[F[f:"Q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
-  gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] delta[fun[fi], fun[fi] // AmpConjugate] deltaf[flv[fi], flv[fi] // AmpConjugate]
-CutAmplitudeGlue[F[f:"q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
-  gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] delta[fun[fi], fun[fi] // AmpConjugate] deltaf[flv[fi], flv[fi] // AmpConjugate]
-CutAmplitudeGlue[F[f:"T", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash - mt1) d_ij d_f1f2 *)
-  (gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] - mt1 gammachain[spn[fi], spn[fi] // AmpConjugate]) delta[fun[fi], fun[fi] // AmpConjugate] deltaft[flv[fi], flv[fi] // AmpConjugate]
-CutAmplitudeGlue[F[f:"t", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash + mt1) d_ij d_f1f2 *)
-  (gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] + mt1 gammachain[spn[fi] // AmpConjugate, spn[fi]]) delta[fun[fi], fun[fi] // AmpConjugate] deltaft[flv[fi], flv[fi] // AmpConjugate]
-CutAmplitudeGlue[f1_, f2_] := Error["Can't connect these cut lines: ", f1, " and ", f2]
-CutAmplitudeGlue[
-  dia1:Diagram[id1_, factor1_, ifields1_List, ofields1_List, propagators1_List, vertices1_List],
-  dia2:Diagram[id2_, factor2_, ifields2_List, ofields2_List, propagators2_List, vertices2_List]
-] := (
-  FailUnless[ofields1[[;;,1]] === ofields2[[;;,1]]];
-  Times[
-    MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times],
-    ofields1[[;;,1]] // PositionIndex // Values // Map[Length /* Factorial] // 1/Times@@# &
-  ]
-)
 AmpToForm[expression_] :=
  ToString[expression, InputForm] //
   StringReplace[{"\"" -> "", " " -> "", "[" -> "(", "]" -> ")"}]
 AmpFromForm[expression_] := expression
+
 AmpFormIndexMaps[ex_] := Module[{original, renamed, i, mu},
   original = CaseUnion[ex, _lor | _adj | _fun | _spn | _X | _flv];
   renamed = original // Map[Replace[{
@@ -270,27 +202,6 @@ AmpSanityCheck[ex_] := Module[{idx, termidx},
     ];
   )&];
 ]
-
-(*
-{
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeQ[flv[2]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeQ[flv[2]] chargeQ[flv[1]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]] chargeV[flv[1]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] chargeA[flv[1]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]] chargeA[flv[1]],
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeQ[flv[2]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeQ[flv[2]] chargeQ[flv[1]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeV[flv[2]] chargeV[flv[1]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] chargeA[flv[1]] /. flv[3] -> 0,
-  deltaflv[1,2] deltaflv[2,3] deltaflv[3,1] chargeA[flv[2]] chargeV[flv[1]] /. flv[3] -> 0
-} // RunThroughForm[FormCall["flavorsum"]]//InputForm
-*)
 
 (* Remove factors that don’t have indices inside from each
  * expression in a list, apply f to the resulting list, put the
