@@ -139,6 +139,9 @@ Module[{model, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
 ]
 Options[Diagrams] = {QGraf -> None, QGrafModel -> None, MasslessFieldPattern -> None};
 
+(* By default look for QGraf in PATH. *)
+If[Not[MatchQ[$QGraf, _String]], $QGraf = "qgraf"; ];
+
 (* ## Diagrams to graphs
  *)
 
