@@ -30,6 +30,13 @@ MkFile[filename_, items__] := Module[{fd},
   Close[fd];
 ]
 
+(* Set a key's value in an association if the key is not already
+ * assigned.
+ *)
+SetDefault[assoc_, key_, value_] :=
+  If[Not[KeyExistsQ[assoc, key]], assoc[key] = value; Null]
+SetAttributes[SetDefault, {HoldFirst}];
+
 (* Persist results of some slow computation in a file: if a
  * given filename exists, return its content (via [[SafeGet]]),
  * otherwise recompute the expression, save its value to the
