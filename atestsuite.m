@@ -135,3 +135,50 @@ Module[{basis, cbasis1, cbasis2},
   FailUnless[IBPBasisSameQ[basis, cbasis2]];
 ]
 
+(* Test `diractrace`.
+ *)
+
+DiracTrace = RunThroughForm[{ "#call chaingammachain\n", "#call diractrace\n" }]
+
+FailUnless[DiracTrace[ gammatrace[gamma[lor[1]]] ] === 0];
+
+FailUnless[DiracTrace[ gammatrace[gamma[lor[1]], gamma[lor[2]], gamma[lor3]] ] === 0];
+
+FailUnless[
+  DiracTrace[ gammatrace[gamma[lor[1]], gamma[lor[2]]] ] ===
+  4 delta[lor[1], lor[2]]
+];
+
+FailUnless[
+  DiracTrace[ gammatrace[gamma[lor[1]], gamma[lor[2]], gamma[lor[3]], gamma[lor[4]]] ] ===
+  + 4 delta[lor[1],lor[2]] delta[lor[3],lor[4]]
+  - 4 delta[lor[1],lor[3]] delta[lor[2],lor[4]]
+  + 4 delta[lor[1],lor[4]] delta[lor[2],lor[3]]
+];
+
+FailUnless[
+  DiracTrace[gammatrace[
+      gamma[lor[1]], gamma[lor[2]], gamma[lor[3]],
+      gamma[lor[4]], gamma[lor[5]], gamma[lor[6]]
+    ]] ===
+  + 4 delta[lor[1],lor[2]] delta[lor[3],lor[4]] delta[lor[5],lor[6]]
+  - 4 delta[lor[1],lor[2]] delta[lor[3],lor[5]] delta[lor[4],lor[6]]
+  + 4 delta[lor[1],lor[2]] delta[lor[3],lor[6]] delta[lor[4],lor[5]]
+  - 4 delta[lor[1],lor[3]] delta[lor[2],lor[4]] delta[lor[5],lor[6]]
+  + 4 delta[lor[1],lor[3]] delta[lor[2],lor[5]] delta[lor[4],lor[6]]
+  - 4 delta[lor[1],lor[3]] delta[lor[2],lor[6]] delta[lor[4],lor[5]]
+  + 4 delta[lor[1],lor[4]] delta[lor[2],lor[3]] delta[lor[5],lor[6]]
+  - 4 delta[lor[1],lor[4]] delta[lor[2],lor[5]] delta[lor[3],lor[6]]
+  + 4 delta[lor[1],lor[4]] delta[lor[2],lor[6]] delta[lor[3],lor[5]]
+  - 4 delta[lor[1],lor[5]] delta[lor[2],lor[3]] delta[lor[4],lor[6]]
+  + 4 delta[lor[1],lor[5]] delta[lor[2],lor[4]] delta[lor[3],lor[6]]
+  - 4 delta[lor[1],lor[5]] delta[lor[2],lor[6]] delta[lor[3],lor[4]]
+  + 4 delta[lor[1],lor[6]] delta[lor[2],lor[3]] delta[lor[4],lor[5]]
+  - 4 delta[lor[1],lor[6]] delta[lor[2],lor[4]] delta[lor[3],lor[5]]
+  + 4 delta[lor[1],lor[6]] delta[lor[2],lor[5]] delta[lor[3],lor[4]]
+];
+
+FailUnless[
+  DiracTrace[ gammatrace[slash[p1], gamma[lor[1]], slash[p2], gamma[lor[1]]] ] ===
+  + 8 dot[p1, p2] - 4 dot[p1, p2] d
+];
