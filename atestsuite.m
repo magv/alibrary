@@ -182,3 +182,32 @@ FailUnless[
   DiracTrace[ gammatrace[slash[p1], gamma[lor[1]], slash[p2], gamma[lor[1]]] ] ===
   + 8 dot[p1, p2] - 4 dot[p1, p2] d
 ];
+
+(* ## Test amodel-qcd.m
+ *)
+
+Get[$Apath <> "/amodel-qcd.m"];
+
+(* Tree-level A->Qq amplitude *)
+
+diagrams = Diagrams[{"A"}, {"Q", "q"}, 0];
+amplitude = diagrams // Map[Amplitude] // Apply[Plus];
+amplitude2 = (
+  amplitude
+  AmpConjugate[amplitude]
+  (-delta[lor[-1], lor[-1]//AmpConjugate])
+  CutAmplitudeGlue[diagrams[[1]], diagrams[[1]]]
+) //
+  RunThroughForm[{
+    "#call contractmomenta\n",
+    "#call sort(after-contractmomenta)\n",
+    "#call chaincolorT\n",
+    "#call chaingammachain\n",
+    "#call flavorsumwithcharge\n",
+    "#call colorsum\n",
+    "#call sort(after-colorsum)\n",
+    "#call spinsum\n",
+    "#call diractrace\n"
+}] //
+  Factor;
+FailUnless[amplitude2 === 4 (d-2) Nc dot[p1, p2] flvsum[chargeQ^2]];
