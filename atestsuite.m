@@ -135,7 +135,7 @@ Module[{basis, cbasis1, cbasis2},
   FailUnless[IBPBasisSameQ[basis, cbasis2]];
 ]
 
-(* Test `diractrace`.
+(* ### Test `diractrace`.
  *)
 
 DiracTrace = RunThroughForm[{ "#call chaingammachain\n", "#call diractrace\n" }]
@@ -181,6 +181,38 @@ FailUnless[
 FailUnless[
   DiracTrace[ gammatrace[slash[p1], gamma[lor[1]], slash[p2], gamma[lor[1]]] ] ===
   + 8 dot[p1, p2] - 4 dot[p1, p2] d
+];
+
+(* ### Test flavorsum
+ *)
+
+FlavorSum = RunThroughForm["#call flavorsumwithcharge\n"];
+
+FailUnless[
+  FlavorSum[ deltaf[flv[1], flv[1]] ] ===
+  flvsum[1]
+];
+
+FailUnless[
+  FlavorSum[ deltaf[flv[1],flv[2]] deltaf[flv[2],flv[3]] deltaf[flv[3],flv[1]] ] ===
+  flvsum[1]
+];
+
+FailUnless[
+  FlavorSum[ deltaf[flv[1],flv[2]] deltaf[flv[2],flv[1]] chargeQ[flv[2]] ] ===
+  flvsum[chargeQ]
+];
+
+FailUnless[
+  FlavorSum[
+    deltaf[flv[1],flv[2]] deltaf[flv[2],flv[1]] chargeQ[flv[1]] chargeQ[flv[2]]
+  ] ===
+  flvsum[chargeQ^2]
+];
+
+FailUnless[
+  FlavorSum[ deltaf[flv[1],flv[1]] chargeQ[flv[1]]^4 ] ===
+  flvsum[chargeQ^4]
 ];
 
 (* ## Test amodel-qcd.m
