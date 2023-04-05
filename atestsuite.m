@@ -188,7 +188,7 @@ FailUnless[
 
 Get[$Apath <> "/amodel-qcd.m"];
 
-(* Tree-level A->Qq amplitude *)
+(* Tree-level A->Qq amplitude squared *)
 
 diagrams = Diagrams[{"A"}, {"Q", "q"}, 0];
 amplitude = diagrams // Map[Amplitude] // Apply[Plus];
@@ -211,3 +211,54 @@ amplitude2 = (
 }] //
   Factor;
 FailUnless[amplitude2 === 4 (d-2) Nc dot[p1, p2] flvsum[chargeQ^2]];
+
+(* Tree-level A->Qqg amplitude squared *)
+
+diagrams = Diagrams[{"A"}, {"Q", "q", "g"}, 0];
+amplitude = diagrams // Map[Amplitude] // Apply[Plus];
+amplitude2 = (
+  amplitude
+  AmpConjugate[amplitude]
+  (-delta[lor[-1], lor[-1]//AmpConjugate])
+  CutAmplitudeGlue[diagrams[[1]], diagrams[[1]]]
+) //
+  RunThroughForm[{
+    "#call contractmomenta\n",
+    "#call sort(after-contractmomenta)\n",
+    "#call chaincolorT\n",
+    "#call chaingammachain\n",
+    "#call flavorsumwithcharge\n",
+    "#call colorsum\n",
+    "#call sort(after-colorsum)\n",
+    "#call spinsum\n",
+    "#call diractrace\n",
+    "#procedure kinematics\n",
+    "  argument; id q = p1 + p2 + p3; endargument;\n",
+    "  #call expanddots\n",
+    "  id dot(p1,p1) = 0;\n",
+    "  id dot(p2,p2) = 0;\n",
+    "  id dot(p3,p3) = 0;\n",
+    "  id dot(p1,p2) = s12/2;\n",
+    "  id dot(p1,p3) = s13/2;\n",
+    "  id dot(p2,p3) = s23/2;\n",
+    "#endprocedure\n",
+    "id Na = Cf*Nc/Tf;\n",
+    "id den(p1?) = 1/dot(p1, p1);\n",
+    "denominators inv;\n",
+    "argument;\n",
+    "  #call kinematics\n",
+    "endargument;\n",
+    "#call kinematics\n"
+}] // ReplaceAll[inv[x_] :> 1/x] // Factor;
+FailUnless[amplitude2 ===
+  gs^2 flvsum[chargeQ^2] 2 (d-2) Cf Nc/(s13 s23)*(
+    + 4 s12^2
+    + 4 s12 s13
+    - 2 s13^2
+    + d s13^2
+    + 4 s12 s23
+    - 8 s13 s23
+    + 2 d s13 s23
+    - 2 s23^2
+    + d s23^2
+)];
