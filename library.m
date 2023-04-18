@@ -129,7 +129,7 @@ AmpConjugate[ex_] := (ex
   *)
   /. (idx : flv | lor | fun | adj | spn)[i_] :> idx[If[TrueQ[i < 0], -5000 + i, 5000 + i]]
   /. Complex[re_, im_] :> Complex[re, -im]
-  /. (chain : gammachain | colorT | colorf)[m___, i_, j_] :> chain[Sequence @@ Reverse[{m}], j, i]
+  /. (chain : gammachain | colorT)[m___, i_, j_] :> chain[Sequence @@ Reverse[{m}], j, i]
   // AmpConjugateMomenta)
 FormatAmp[ex_] := ReplaceRepeated[ex, {
    delta[a_, b_] :> Subscript["\[Delta]", Row[{a, b}]],
