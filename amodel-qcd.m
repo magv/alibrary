@@ -41,8 +41,6 @@ $QGrafModel = "\
 
 $MasslessFieldPattern = "q"|"Q"|"g"|"A";
 
-$FermionFieldPattern = "q"|"Q"|"c"|"C"|"t"|"T";
-
 (* ## Propagators
  *)
 

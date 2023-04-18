@@ -23,8 +23,6 @@ $QGrafModel = "\
 
 $MasslessFieldPattern = "s";
 
-$FermionFieldPattern = Alternatives[];
-
 (* ## Propagators
  *)
 

@@ -53,10 +53,6 @@ Get[$Apath <> "/library.m"];
  *)
 DiagramId[Diagram[id_, factor_, ifld_, ofld_, props_, verts_]] := id
 
-(* Note that we store but don’t trust the sign of the diagram
- * that QGraf produces. Use [[DiagramSign]] to compute the actual
- * sign.
- *)
 DiagramSymmetryFactor[Diagram[_, factor_, _, _, _, _]] := Abs[factor]
 
 DiagramIncomingFields[Diagram[_, _, ifld_List, _, _, _]] := ifld
@@ -82,15 +78,6 @@ Module[{edges, SS, II, EE},
   ];
   edges // ConnectedComponents // Select[FreeQ[_SS|_EE]] // Length
 ]
-
-(* Compute the sign of a diagram by counting fermion loops.
- *
- * Note that we don’t assume to know the names of all fermion
- * fields, and expect them to be passed in explicitly. The fermion
- * field pattern can be something like `"q"|"Q"|"t"|"T"|"c"|"C"`.
- *)
-DiagramSign[d_Diagram, fermionpattern_] := (-1)^DiagramClosedLoops[d, fermionpattern]
-DiagramSign[fermionpattern_] := DiagramSign[#, fermionpattern]&
 
 (* Return a list of diagrams produced by QGraf with the given
  * incoming and outgoing fields and the given number of loops.
@@ -2753,8 +2740,7 @@ ClearAll[Amplitude];
  *)
 Amplitude[
   dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]] := Flatten[{
-    DiagramSign[dia, $FermionFieldPattern],
-    Abs[factor],
+    factor,
     propagators // Map[Amplitude],
     vertices // Map[Amplitude]
   }] // Apply[Times]
