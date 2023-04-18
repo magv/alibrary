@@ -135,6 +135,21 @@ Module[{basis, cbasis1, cbasis2},
   FailUnless[IBPBasisSameQ[basis, cbasis2]];
 ]
 
+FailUnless[AmpConjugate[{flv[1], flv[-1]}] === {flv[5001], flv[-5001]}];
+FailUnless[AmpConjugate[{lor[1], lor[-1]}] === {lor[5001], lor[-5001]}];
+FailUnless[AmpConjugate[{fun[1], fun[-1]}] === {fun[5001], fun[-5001]}];
+FailUnless[AmpConjugate[{adj[1], adj[-1]}] === {adj[5001], adj[-5001]}];
+
+FailUnless[
+  AmpConjugate[colorf[adj[1], adj[2], adj[3]]] ===
+  colorf[adj[5001], adj[5002], adj[5003]]
+];
+
+FailUnless[
+  AmpConjugate[colorT[adj[1], adj[2], adj[3]]] ===
+  colorT[adj[5001], adj[5003], adj[5002]]
+];
+
 (* ### Test `diractrace`.
  *)
 
