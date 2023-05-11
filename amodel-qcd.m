@@ -120,7 +120,11 @@ Amplitude[V[_, "TtH", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
 CutAmplitudeGlue[F[f:"H", fi_, _, mom_], F[f_, fi_, _, mom_]] := 1
 
 CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -g_mn d_ab *)
-  -delta[lor[fi], lor[fi] // AmpConjugate] delta[adj[fi], adj[fi] // AmpConjugate]
+  delta[adj[fi], adj[fi] // AmpConjugate] *
+  (- delta[lor[fi], lor[fi] // AmpConjugate]
+   + 2 den[mom + paxial[mom]] momentum[mom, lor[fi]] momentum[paxial[mom], lor[fi] // AmpConjugate]
+   + 2 den[mom + paxial[mom]] momentum[mom, lor[fi] // AmpConjugate] momentum[paxial[mom], lor[fi]])
+
 CutAmplitudeGlue[F[f:"c"|"C", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* d_ab *)
   delta[adj[fi], adj[fi] // AmpConjugate]
 
