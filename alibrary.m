@@ -756,10 +756,12 @@ If[Not[MatchQ[$Feynson, _String]], $Feynson = "feynson -q -j4"; ];
  *)
 ZeroSectors[basis_Association] :=
   RunThrough[$Feynson <> " zero-sectors -sj3 -", {
-      basis["denominators"] /.
-        den[p_] :> p^2 /.
-        den[p_, m_] :> p^2-m /.
+      basis["denominators"] /. {
+        den[p_] :> p^2,
+        den[p_, m_] :> p^2-m,
         den[p_, m_, irr] :> p^2-m,
+        den[p_, m_, cut] :> p^2-m-CUT
+      },
       basis["denominators"] /. den[_, _, cut] -> 1 /. den[___] -> 0,
       basis["loopmom"],
       basis["sprules"] /. Rule->List /. sp -> Times
