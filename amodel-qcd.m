@@ -25,16 +25,16 @@ $QGrafModel = "\
 # Ghosts (gluonic)
 [c, C, -]
 # Vertices
-[A, q, Q]
-[Z, q, Q]
-[g, q, Q]
-[g, c, C]
+[Q, q, A]
+[Q, q, Z]
+[Q, q, g]
+[C, c, g]
 [g, g, g]
 [g, g, g, g]
-[A, t, T]
-[Z, t, T]
-[g, t, T]
-[H, t, T]";
+[T, t, A]
+[T, t, Z]
+[T, t, g]
+[T, t, H]";
 
 (* ## Field classification
  *)
@@ -47,44 +47,55 @@ $MasslessFieldPattern = "q"|"Q"|"g"|"A";
 Amplitude[P["q", fi1_, fi2_, _, _, p_]] :=
   I deltaflv[fi1, fi2] deltafun[fi2, fi1] \
   gammachain[slash[p], spn[fi2], spn[fi1]] den[p]
+
 Amplitude[P["t", fi1_, fi2_, _, _, p_]] :=
   I deltaflvt[fi1, fi2] deltafun[fi2, fi1] \
   (gammachain[slash[p], spn[fi2], spn[fi1]] + mt1 gammachain[spn[fi2], spn[fi1]]) den[p, mt2]
+
 Amplitude[P["g", fi1_, fi2_, _, _, p_]] :=
   -I deltaadj[fi1, fi2] (deltalor[fi1, fi2] den[p] -
     Xi momentum[p, lor[fi1]] momentum[p, lor[fi2]] den[p]^2)
+
 Amplitude[P["H", fi1_, fi2_, _, _, p_]] := I den[p]
+
 Amplitude[P["c", fi1_, fi2_, _, _, p_]] := I deltaadj[fi1, fi2] den[p]
 
 (* ## Vertices
  *)
 
-Amplitude[V[_, "gqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  I gs deltaflv[fi2, fi3] gammachain[gamma[lor[fi1]], spn[fi3],
-  spn[fi2]] colorT[adj[fi1], fun[fi3], fun[fi2]]
-Amplitude[V[_, "gtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  I gs deltaflvt[fi2, fi3] gammachain[gamma[lor[fi1]], spn[fi3],
-  spn[fi2]] colorT[adj[fi1], fun[fi3], fun[fi2]]
-Amplitude[V[_, "gcC", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  -gs colorf[adj[fi1], adj[fi2], adj[fi3]] momentum[-p3, lor[fi1]]
-Amplitude[V[_, "AqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* ge *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] chargeQ[flv[fi2]] \
-  gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
-Amplitude[V[_, "AtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* ge *) I deltaflvt[fi2, fi3] deltafun[fi3, fi2] chargeQt[flv[fi2]] \
-  gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]]
-Amplitude[V[_, "ZqQ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  (* gz *) I deltaflv[fi2, fi3] deltafun[fi3, fi2] (
-    chargeV[flv[fi2]] gammachain[gamma[lor[fi1]], spn[fi3], spn[fi2]] -
+Amplitude[V[_, "Qqg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  I gs deltaflv[fi2, fi1] gammachain[gamma[lor[fi3]], spn[fi1],
+  spn[fi2]] colorT[adj[fi3], fun[fi1], fun[fi2]]
+
+Amplitude[V[_, "Ttg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  I gs deltaflvt[fi2, fi1] gammachain[gamma[lor[fi3]], spn[fi1],
+  spn[fi2]] colorT[adj[fi3], fun[fi1], fun[fi2]]
+
+Amplitude[V[_, "Ccg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  -gs colorf[adj[fi3], adj[fi2], adj[fi1]] momentum[-p1, lor[fi3]]
+
+Amplitude[V[_, "QqA", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  (* ge *) I deltaflv[fi2, fi1] deltafun[fi1, fi2] chargeQ[flv[fi2]] \
+  gammachain[gamma[lor[fi3]], spn[fi1], spn[fi2]]
+
+Amplitude[V[_, "TtA", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  (* ge *) I deltaflvt[fi2, fi1] deltafun[fi1, fi2] chargeQt[flv[fi2]] \
+  gammachain[gamma[lor[fi3]], spn[fi1], spn[fi2]]
+
+Amplitude[V[_, "QqZ", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  (* gz *) I deltaflv[fi2, fi1] deltafun[fi1, fi2] (
+    chargeV[flv[fi2]] gammachain[gamma[lor[fi3]], spn[fi1], spn[fi2]] -
     (* gamma5[mu] == gamma[mu] gamma5 *)
-    chargeA[flv[fi2]] gammachain[gamma5[lor[fi1]], spn[fi3], spn[fi2]]
+    chargeA[flv[fi2]] gammachain[gamma5[lor[fi3]], spn[fi1], spn[fi2]]
   )
+
 Amplitude[V[_, "ggg", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
   gs colorf[adj[fi1], adj[fi2], adj[fi3]] (
     deltalor[fi1, fi2] momentum[p1 - p2, lor[fi3]] +
     deltalor[fi2, fi3] momentum[p2 - p3, lor[fi1]] +
     deltalor[fi3, fi1] momentum[p3 - p1, lor[fi2]]
   )
+
 Amplitude[V[vi_, "gggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] :=
   Module[{adjX = adj[1000 + vi]},
     -I gs^2 (
@@ -99,29 +110,35 @@ Amplitude[V[vi_, "gggg", fi1_, p1_, fi2_, p2_, fi3_, p3_, fi4_, p4_]] :=
           deltalor[fi1, fi3] deltalor[fi2, fi4])
     )
   ]
-Amplitude[V[_, "HtT", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
-  gH deltaflvt[fi2, fi3] deltafun[fi2, fi3] gammachain[spn[fi3], spn[fi2]]
+
+Amplitude[V[_, "TtH", fi1_, p1_, fi2_, p2_, fi3_, p3_]] :=
+  gH deltaflvt[fi2, fi1] deltafun[fi2, fi1] gammachain[spn[fi1], spn[fi2]]
 
 (* ## Final states
  *)
 
 CutAmplitudeGlue[F[f:"H", fi_, _, mom_], F[f_, fi_, _, mom_]] := 1
+
 CutAmplitudeGlue[F[f:"g", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* -g_mn d_ab *)
   -delta[lor[fi], lor[fi] // AmpConjugate] delta[adj[fi], adj[fi] // AmpConjugate]
 CutAmplitudeGlue[F[f:"c"|"C", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* d_ab *)
   delta[adj[fi], adj[fi] // AmpConjugate]
+
 CutAmplitudeGlue[F[f:"Q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
   gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] *
   delta[fun[fi], fun[fi] // AmpConjugate] *
   deltaf[flv[fi], flv[fi] // AmpConjugate]
+
 CutAmplitudeGlue[F[f:"q", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* p^slash d_ij d_f1f2 *)
   gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] *
   delta[fun[fi], fun[fi] // AmpConjugate] *
   deltaf[flv[fi], flv[fi] // AmpConjugate]
+
 CutAmplitudeGlue[F[f:"T", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash - mt1) d_ij d_f1f2 *)
   (gammachain[slash[mom], spn[fi], spn[fi] // AmpConjugate] - mt1 gammachain[spn[fi], spn[fi] // AmpConjugate]) *
   delta[fun[fi], fun[fi] // AmpConjugate] *
   deltaft[flv[fi], flv[fi] // AmpConjugate]
+
 CutAmplitudeGlue[F[f:"t", fi_, _, mom_], F[f_, fi_, _, mom_]] := (* (p^slash + mt1) d_ij d_f1f2 *)
   (gammachain[slash[mom], spn[fi] // AmpConjugate, spn[fi]] + mt1 gammachain[spn[fi] // AmpConjugate, spn[fi]]) *
   delta[fun[fi], fun[fi] // AmpConjugate] *
