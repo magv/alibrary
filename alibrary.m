@@ -82,14 +82,17 @@ Module[{edges, SS, II, EE},
 (* Return a list of diagrams produced by QGraf with the given
  * incoming and outgoing fields and the given number of loops.
  *
- * The QGraf model file and the massless particle pattern
- * are specified via the global variables $QGrafModel and
- * $MasslessFieldPattern. These can be overriden via the QGrafModel
- * and the MasslessFieldPattern options.
+ * The QGraf model file, QGraf options, and the massless particle
+ * pattern are specified via the global variables $QGrafModel,
+ * $QGrafOptions, and $MasslessFieldPattern. These can be overriden
+ * via QGrafModel, QGrafOptions, and MasslessFieldPattern options,
+ * but the idea is that a model file has already provided the
+ * global variables instead.
  *)
 Diagrams[fieldsi_List, fieldso_List, loops_Integer, OptionsPattern[]] :=
-Module[{model, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
+Module[{model, options, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
   model = Replace[OptionValue[QGrafModel], None -> $QGrafModel];
+  options = Replace[OptionValue[QGrafOptions], None -> $QGrafOptions];
   qgraf = Replace[OptionValue[QGraf], None -> $QGraf];
   nomasspat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
   FailUnless[MatchQ[model, _String]];
@@ -107,7 +110,7 @@ Module[{model, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
     "out=", MapThread[{#1, "[", #2, "]"}&, {fieldso, momo}] // Riffle[#, ", "]&, ";\n",
     "loops=", loops, ";\n",
     "loop_momentum=l;\n",
-    "options=;\n",
+    "options=", options, ";\n",
     If[Length[fieldso] > 1,
       Table[
         If[MatchQ[fieldsi[[i]], nomasspat], {"false=plink[", 1-2*i, "];\n"}, ""],
@@ -124,7 +127,7 @@ Module[{model, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
   EnsureNoDirectory[tmpdir];
   result
 ]
-Options[Diagrams] = {QGraf -> None, QGrafModel -> None, MasslessFieldPattern -> None};
+Options[Diagrams] = {QGraf -> None, QGrafModel -> None, QGrafOptions -> None, MasslessFieldPattern -> None};
 
 (* By default look for QGraf in PATH. *)
 If[Not[MatchQ[$QGraf, _String]], $QGraf = "qgraf"; ];

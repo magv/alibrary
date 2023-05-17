@@ -36,6 +36,8 @@ $QGrafModel = "\
 [T, t, g]
 [T, t, H]";
 
+$QGrafOptions = "";
+
 (* ## Field classification
  *)
 

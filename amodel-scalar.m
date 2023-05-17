@@ -18,6 +18,8 @@ $QGrafModel = "\
 [s, s, s, s, s]
 [s, s, s, s, s, s]";
 
+$QGrafOptions = "nosnail,notadpole";
+
 (* ## Field classification
  *)
 
