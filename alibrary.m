@@ -111,7 +111,7 @@ Module[{model, options, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
     "loops=", loops, ";\n",
     "loop_momentum=l;\n",
     "options=", options, ";\n",
-    If[Length[fieldso] > 1,
+    If[Length[fieldsi] > 1,
       Table[
         If[MatchQ[fieldsi[[i]], nomasspat], {"false=plink[", 1-2*i, "];\n"}, ""],
         {i, Length[fieldsi]}],
