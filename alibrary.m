@@ -1409,7 +1409,7 @@ Module[{COEF},
  * the given integrals under the given bases.
  *)
 MkKiraConfig[dirname_, bases_List, blist_, OptionsPattern[]] :=
-Module[{bid, bids, bid2topsector, idxlist},
+Module[{bid, bids, bid2topsector, idxlist, massdims},
   EnsureDirectory[dirname];
   EnsureDirectory[dirname <> "/config"];
   bids = blist // CaseUnion[B[bid_, ___] :> bid];
