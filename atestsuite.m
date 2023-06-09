@@ -364,7 +364,7 @@ amplitude2 = (
   Bracket[#, _flvsum|Ca|Cf|gs|Nc|Tf, Factor]&;
 FailUnless[FreeQ[amplitude2, Xi]];
 
-correctamplitude2 = 1/2 gs^4 flvsum[chargeQ^2] (
+correctamplitude2 = gs^4 flvsum[chargeQ^2] (
   +Cf^2*Nc (
     -8*den1*(-2+d)^2
     -4*den2*(-2+d)^2
@@ -535,7 +535,7 @@ amplitude2 = (
   ReplaceAll[inv[x_] :> 1/x] //
   Bracket[#, _flvsum|Ca|Cf|gs|Nc|Tf, Factor]&;
 
-correctamplitude2 = gs^4/4 (
+correctamplitude2 = gs^4 (
  +Cf*Nc*Tf*flvsum[chargeQ]^2*(
   -4*den7*(-8+3*d)
   -4*den8*(-8+3*d)

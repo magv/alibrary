@@ -2768,10 +2768,7 @@ CutAmplitudeGlue[
   dia2:Diagram[id2_, factor2_, ifields2_List, ofields2_List, propagators2_List, vertices2_List]
 ] := (
   FailUnless[ofields1[[;;,1]] === ofields2[[;;,1]]];
-  Times[
-    MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times],
-    ofields1[[;;,1]] // PositionIndex // Values // Map[Length /* Factorial] // 1/Times@@# &
-  ]
+  MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times]
 )
 
 (* Compute the sum over the final state particle states (i.e.
@@ -2783,8 +2780,5 @@ DiagramFinalStateSum[
   dia2:Diagram[id2_, factor2_, ifields2_List, ofields2_List, propagators2_List, vertices2_List]
 ] := (
   FailUnless[ofields1[[;;,1]] === ofields2[[;;,1]]];
-  Times[
-    MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times],
-    ofields1[[;;,1]] // PositionIndex // Values // Map[Length /* Factorial] // 1/Times@@# &
-  ]
+  MapThread[CutAmplitudeGlue, {ofields1, ofields2}] // Apply[Times]
 )
