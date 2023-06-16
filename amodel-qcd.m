@@ -4,6 +4,24 @@
  * quarks (qQ), heavy quarks (tT), gluons (g), ghosts (cC), and
  * external photons (A), Z bosons (Z), and Higgs-like scalars
  * coupled to the heavy quarks (H).
+ *
+ * Note that this models sets the polarization sums computed by
+ * over the external gluons computed by [[DiagramFinalStateSum]]
+ * as if they were in the axial gauge: a gluon with momenta $p$
+ * will have the polarization sum of
+ *
+ * $$
+ *   -g_{\mu,\nu}
+ *   +2\,\text{den}(p+\text{paxial}(p)) \left(
+ *     p^{\mu} \, \text{paxial}(p)^\nu + p^{\nu} \, \text{paxial}(p)^\mu
+ *   \right),
+ * $$
+ *
+ * where $\text{paxial}(p)$ is the massless axial momentum
+ * corresponding to $p$, and $\text{den}(p)$ is $1/p^2$. It is
+ * then up to the user to either replace `paxial[p]` by the
+ * chosen axial vector, or to replace `den[p+paxial[p]]` with
+ * zero to be in the Feynman gauge.
  *)
 
 (* ## QGraf model
