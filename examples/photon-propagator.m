@@ -29,7 +29,7 @@ Get[$Apath <> "/amodel-qcd.m"];
 
 NLOOPS = 2;
 
-(* ## Diagrams
+(* ## Creating the diagrams
  *
  * Generate the diagrams with one incoming photon and one outgoing
  * photon with QGraf.
