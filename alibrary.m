@@ -350,8 +350,8 @@ Module[{pstyles, ni, no, coords, scale, external},
     If[
       Plus@@(Join[i, o] /. F[f_, fi_, vi_, mom_] :> EuclideanDistance[#[vi]*{1,+1}, external[fi]]^2) >
       Plus@@(Join[i, o] /. F[f_, fi_, vi_, mom_] :> EuclideanDistance[#[vi]*{1,-1}, external[fi]]^2),
-      #*{1,+1},
-      #*{1,-1}
+      Map[#*{1,+1}&, #],
+      Map[#*{1,-1}&, #]
     ]& //
     Join[external, #]&;
   MkString[
