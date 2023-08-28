@@ -1979,7 +1979,7 @@ SecDecIntegralName[integral_B] := integral //
   StringReplace["]" -> ""] //
   StringReplace["-" -> "m"]
 SecDecIntegralName[DimShift[integral_B, n_]] :=
-  SecDecIntegralName[integral] <> "_dshift" <> ToString[n]
+  SecDecIntegralName[integral] <> "_dshift" <> If[Negative[n], "m", ""] <> ToString[Abs[n]]
 
 (* Convert an expression into a string in Sympy format.
  *
