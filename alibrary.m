@@ -1261,6 +1261,21 @@ IndicesToDots[idx_List] := idx // Cases[n_ /; n>1 :> n-1] // Apply[Plus]
 IndicesToT[idx_List] := idx // Count[n_ /; n > 0]
 IndicesToS[idx_List] := idx // Cases[n_ /; n < 0 :> -n] // Apply[Plus]
 
+BToR[B[bid_, idx___]] := IndicesToR[{idx}]
+BToR[DimShift[b_B, _]] := BToR[b]
+BToDots[B[bid_, idx___]] := IndicesToDots[{idx}]
+BToDots[DimShift[b_B, _]] := BToDots[b]
+BToT[B[bid_, idx___]] := IndicesToT[{idx}]
+BToT[DimShift[b_B, _]] := BToT[b]
+BToS[B[bid_, idx___]] := IndicesToS[{idx}]
+BToS[DimShift[b_B, _]] := BToS[b]
+BToBID[B[bid_, idx___]] := bid
+BToBID[DimShift[b_B, _]] := BToBID[b]
+BToIndices[B[bid_, idx___]] := {idx}
+BToIndices[DimShift[b_B, n_]] := BToIndices[b]
+BToDimension[_B] := 4
+BToDimension[DimShift[_B, n_]] := 4+n
+
 (* Convert an integral in B notation into the corner integral of
  * the corresponding sector (i.e. normalize all indices to 1 or 0.
  *)
@@ -2154,33 +2169,96 @@ Module[{name, basisid, bid2basis, indices, basis, integral, p, m, dim, order, pr
   ];
 ]
 
-(* Prepare pySecDec files for a sum of integrals with coefficients,
- * set up similarly to [[SecDecPrepare]]. *)
-SecDecPrepareSum[basedir_String, bases_List, integrals_List, coefficients_List, OptionsPattern[]] :=
-Module[{name, basisid, bid2basis, indices, basis, realp, integral, coeff, p, m, dim, order, prefactor, cache},
-  FailUnless[Length[coefficients] > 0];
-  FailUnless[Length[coefficients[[1]]] === Length[integrals]];
+ToPythonString[text_String] := StringJoin[
+  "\"",
+  StringReplace[text, {
+    "\n" -> "\\n",
+    "\r" -> "\\r",
+    "\t" -> "\\t",
+    "\\" -> "\\\\",
+    "\"" -> "\\\""
+  }],
+  "\""]
+
+(* Prepare pySecDec files in a given directory for the given
+ * weighted sums of integrals (in `B[...]` or `DimShift[B[...],...]`
+ * syntax). The sums must be specified as `Association` maps from
+ * string (sum names) into expressions.
+ *
+ * The resulting directory consists of a single Python script
+ * `compile.py`. When executed, this script will compile a
+ * pySecDec *disteval* integration library, and put it into the
+ * `disteval` subfolder, with `disteval/sum.json` being the main
+ * entry point for the evaluation.
+ * 
+ * By default `compile.py` will use all the locally available CPUs;
+ * this can be overridden by setting the `THREADS` environment
+ * variable.
+ *
+ * After the compilation one can use the *disteval* CLI, or
+ * [SecDecIntegrateSum] to use the integration library to evaluate
+ * the specified sums.
+ *
+ * Note that the loop integration in the integrals is assumed to
+ * come with physical normalization, i.e. $1/(2\pi)^d$ per loop,
+ * which is different from the default pySecDec normalization
+ * ($1/(i\pi^{d/2})$ per loop). Additional prefactors can be
+ * passed via the `IntegralPrefactors` option as an `Association`
+ * mapping from integrals to prefactors.
+ *
+ * There is a provision for automatically detecting Euclidean
+ * integrals, and compiling them without contour deformaion, thus
+ * making the evaluation faster: the `InvariantSignMap` option.
+ * If certain parameters of the integrals are known to always
+ * be positive (or negative), add an entry to InvariantSignMap
+ * mapping the parameter to `+1` or `-1`. This information will
+ * then be used to disable contour deformation for integrals
+ * with $F$ polynomials that are always positive.
+ *)
+SecDecPrepareSum[basedir_String, bases_List, sums_Association, OptionsPattern[]] :=
+Module[{sum2int2co, integrals, int2idx, name, basisid, bid2basis, indices, basis, integral, p, m, dim, order, prefactor, cache, intfunnames, sumnames},
+  sum2int2co = sums // Map[BracketAssociation[_DimShift|_B]];
+  integrals = sum2int2co // Map[Keys] // Values // Apply[Join] // Union;
+  int2idx = integrals // PositionIndex // Map[First];
+  FailUnless[Length[sums] > 0];
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   EnsureDirectory[basedir];
   cache = <||>;
-  realp = Join[Table[basis["invariants"], {basis, bases}], OptionValue[ExtraRealParameters]] // Flatten // Union;
+  intfunnames = integrals // MapIndexed1[MkString["int_", #2-1, "_", SecDecIntegralName[#1]]&];
   MaybeMkFile[basedir <> "/compile.py",
     "#!/usr/bin/env python3\n",
+    "import multiprocessing\n",
     "import os\n",
     "import subprocess\n",
+    "import sys\n",
     "import tempfile\n",
-    "import multiprocessing\n",
+    "import sympy as sp\n",
     "import pySecDec as psd\n",
-    "make_terms = []\n",
-    "make_coefficients = []\n",
-    "zero_c = psd.Coefficient(numerators=['0'], denominators=['1'], parameters=[])\n",
+    "\n",
+    "signmap = {\n",
+    Table[{"  sp.Symbol('x", i-1, "'): 1,\n"}, {i, bases // Map[#["denominators"]& /* Length] // Max}],
+    If[OptionValue[InvariantSignMap] === None,
+      "",
+      OptionValue[InvariantSignMap] // Normal // MapReplace[(k_ -> v_) :> {"  sp.Symbol('", k, "'): ", v // InputForm, ",\n"}]
+    ],
+    "}\n",
+    "\n",
+    "def needs_cdeform(name, Fpoly):\n",
+    "  poly = sp.sympify(str(Fpoly))\n",
+    "  terms = sp.Add.make_args(poly.expand())\n",
+    "  res = not all((t.subs(signmap) > 0) == True for t in terms)\n",
+    "  print(f'Needs-Contour-Deformation({name}, {poly}) = {res}')\n",
+    "  return res\n",
+    "\n",
+    "def call(f):\n",
+    "  return f()\n",
     Table[
       {
       "\n",
       "b", basis["id"], "_propagators = [\n",
       basis["denominators"] /. {
-        den[p_] :> {"    '(", p//ToSympy, ")^2'"},
-        den[p_,m_,___] :> {"    '(", p//ToSympy, ")^2-", m//ToSympy, "'"}
+        den[p_] :> {"  '(", p//ToSympy, ")^2'"},
+        den[p_,m_,___] :> {"  '(", p//ToSympy, ")^2-", m//ToSympy, "'"}
       } // Riffle[#, ",\n"]&,
       "\n]\n",
       "\n",
@@ -2205,140 +2283,145 @@ Module[{name, basisid, bid2basis, indices, basis, realp, integral, coeff, p, m, 
       {basis, bases}],
     Table[
       integral = integrals[[idx]];
-      {name, integral, dim, order, prefactor} = integral // Replace[{
-          pre_. * b_B :> {SecDecIntegralName[b], b, 4, 0, pre},
-          pre_. * int:DimShift[b_B, n_] :> {SecDecIntegralName[int], b, 4 + n, 0, pre},
-          {pre_. * b_B, ord_} :> {SecDecIntegralName[b], b, 4, ord, pre},
-          {pre_. * int:DimShift[b_B, n_], ord_} :> {SecDecIntegralName[int], b, 4+n, ord, pre}
-      }];
-      basisid = integral[[1]];
-      indices = integral[[2;;]] // Apply[List];
-      basis = bid2basis[basisid];
+      prefactor = Lookup[OptionValue[IntegralPrefactors], integral, 1];
+      indices = BToIndices[integral];
+      basis = bid2basis[BToBID[integral]];
+      dim = BToDimension[integral];
       {
       "\n",
-      "def term_", name, "():\n",
-      "    return psd.LoopPackage(\n",
-      "        name = '", name, "',\n",
-      "        loop_integral = psd.loop_integral.LoopIntegralFromPropagators(\n",
-      "            loop_momenta = ['", basis["loopmom"] // Riffle[#, "','"]&, "'],\n",
-      "            external_momenta = ['", basis["externalmom"] // Riffle[#, "','"]&, "'],\n",
-      "            regulator = 'eps',\n",
-      "            propagators = b", basis["id"], "_propagators,\n",
-      "            powerlist = [", indices // Riffle[#, ","]&, "],\n",
-      "            dimensionality = '", dim, "-2*eps',\n",
-      "            replacement_rules = b", basis["id"], "_replacement_rules\n",
-      "        ),\n",
-      "        real_parameters = [",
-        realp // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+      "def ", intfunnames[[idx]], "():\n",
+      "  li = psd.loop_integral.LoopIntegralFromPropagators(\n",
+      "    loop_momenta = ['", basis["loopmom"] // Riffle[#, "','"]&, "'],\n",
+      "    external_momenta = ['", basis["externalmom"] // Riffle[#, "','"]&, "'],\n",
+      "    propagators = b", basis["id"], "_propagators,\n",
+      "    powerlist = [", indices // Riffle[#, ","]&, "],\n",
+      "    replacement_rules = b", basis["id"], "_replacement_rules,\n",
+      "    dimensionality = '", dim, "-2*eps',\n",
+      "    regulators = ['eps']\n",
+      "  )\n",
+      "  return psd.LoopPackage(\n",
+      "    name = '", SecDecIntegralName[integral], "',\n",
+      "    loop_integral = li,\n",
+      "    real_parameters = [",
+        basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
       "],\n",
-      "        additional_prefactor = '",
+      "    additional_prefactor = '",
         (* Convert from pySecDec to the physical normalization. *)
         (I*Pi^(dim/2-eps)/(2*Pi)^(dim-2*eps))^Length[basis["loopmom"]] * prefactor // Factor // ToSympy,
       "',\n",
-      "        decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
-      "        requested_order = ", order, ",\n",
-      "        form_optimization_level = 4,\n",
-      "        form_work_space = '100M',\n",
-      "        form_threads = 1,\n",
-      "        contour_deformation = True\n",
-      "    )\n",
-      "\n",
-      "def coefficients_", name, "():\n",
-      "    coeffs = [zero_c]*", Length[coefficients], "\n",
-      Enumerate[coefficients[[;;, idx]]] //
-        DeleteCases[{_, 0}] //
-        MapReplace[{
-          {i_, coeff_?IntegerQ} :>
-            {"    coeffs[", i-1, "] = psd.Coefficient(['", coeff, "'], ['1'], [])\n"},
-          {i_, coeff_} :>
-            {
-            "    coeffs[", i-1, "] = psd.Coefficient(\n",
-            "        numerators=[", Numerator[coeff] // Factors // Map[{"'", #//InputForm, "'"}&] // Riffle[#, ", "]&, "],\n",
-            "        denominators=[", Denominator[coeff] // Factors // Map[{"'", #//InputForm, "'"}&] // Riffle[#, ", "]&, "],\n",
-            "        parameters=[", coeff // CaseUnion[_Symbol] // DeleteCases[eps] // Map[{"'", #//InputForm, "'"}&] // Riffle[#, ", "]&, "])\n"
-            }
-        }],
-      "    return coeffs\n",
-      "\n",
-      "make_terms.append(term_", name, ")\n",
-      "make_coefficients.append(coefficients_", name, ")\n"
+      "    decomposition_method = '", If[Count[indices, Except[0]] > 2, "geometric_ku", "iterative"],"',\n",
+      "    form_optimization_level = 4,\n",
+      "    form_work_space = '100M',\n",
+      "    form_threads = 1,\n",
+      "    contour_deformation = needs_cdeform('", SecDecIntegralName[integral], "', li.F)\n",
+      "  )\n"
       }
       ,
       {idx, Length[integrals]}
     ],
     "\n",
-    "def call(f):\n",
-    "    return f()\n",
-    "\n",
     "if __name__ == '__main__':\n",
-    "    threads = int(os.environ.get('THREADS', '1'))\n",
-    "    if threads > 1:\n",
-    "        pool = multiprocessing.Pool(threads)\n",
-    "        terms = pool.map(call, make_terms)\n",
-    "        pool.close()\n",
-    "        pool.join()\n",
-    "    else:\n",
-    "        terms = [f() for f in make_terms]\n",
-    "    coefficients = [f() for f in make_coefficients]\n",
-    "    subprocess.check_call(['rm', '-rf', 'sum_pylink.so', 'sum_data'])\n",
-    "    cwd = os.getcwd()\n",
-    "    with tempfile.TemporaryDirectory(prefix='psd') as tmp:\n",
-    "        os.chdir(tmp)\n",
-    "        psd.sum_package('sum',\n",
-    "            terms,\n",
-    "            regulators=['eps'],\n",
-    "            requested_orders=[", OptionValue[Order], "],\n",
-    "            coefficients=[list(x) for x in zip(*coefficients)],\n",
-    "            real_parameters=[",
-      realp // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
+    "  # Always start in the directory this file resides in\n",
+    "  thisdir = os.path.dirname(sys.argv[0])\n",
+    "  if thisdir: os.chdir(os.path.dirname(sys.argv[0]))\n",
+    "\n",
+    "  make_integrals = [\n",
+    Table[{"    ", name, ",\n"}, {name, intfunnames}],
+    "  ]\n",
+    "\n",
+    "  coefficients = {\n",
+    sum2int2co //
+      Normal //
+      MapReplace[(sumname_ -> coefficients_) :> {
+        "    ", sumname // ToPythonString, ": {\n",
+        coefficients //
+          Normal //
+          MapReplace[(int_ -> coefficient_) :> {
+            "      ", int2idx[int]-1, ": ", coefficient // InputForm // ToString // ToPythonString, ",\n"
+          }],
+        "    },\n"
+      }],
+    "  }\n",
+    "  try:\n",
+    "    nthreads = int(os.environ['THREADS'])\n",
+    "  except KeyError:\n",
+    "    try:\n",
+    "      nthreads = len(os.sched_getaffinity(0))\n",
+    "    except AttributeError:\n",
+    "      nthreads = os.cpu_count()\n",
+    "  if nthreads > 1:\n",
+    "    with multiprocessing.Pool(nthreads) as pool:\n",
+    "      integrals = pool.map(call, make_integrals)\n",
+    "  else:\n",
+    "    integrals = [f() for f in make_integrals]\n",
+    "  subprocess.check_call(['rm', '-rf', 'disteval'])\n",
+    "  cwd = os.getcwd()\n",
+    "  with tempfile.TemporaryDirectory(prefix='psd') as tmp:\n",
+    "    os.chdir(tmp)\n",
+    "    psd.sum_package('sum',\n",
+    "      integrals,\n",
+    "      coefficients = coefficients,\n",
+    "      regulators = ['eps'],\n",
+    "      requested_orders = [", OptionValue[Order], "],\n",
+    "      real_parameters = [",
+      basis["invariants"] // Map[{"'", #, "'"}&] // Riffle[#, ", "]&,
     "],\n",
-    "            processes = threads\n",
-    "        )\n",
-    "        subprocess.check_call(['make', '-C', 'sum', '-j', str(threads)])\n",
-    "        subprocess.check_call(['cp', '-a', 'sum/sum_pylink.so', cwd])\n",
-    "        subprocess.check_call(['cp', '-a', 'sum/sum_data', cwd])\n",
-    "        subprocess.check_call(['rm', '-rf', 'sum'])\n"
-  ];
-  MaybeMkFile[basedir <> "/integrate.py",
-    "#!/usr/bin/env python3\n",
-    "import os\n",
-    "import sys\n",
-    "import pySecDec as psd\n",
-    "if __name__ == '__main__':\n",
-    "    argmap = dict(arg.split('=') for arg in sys.argv[1:])\n",
-    "    parameters = [",
-      realp // Map[{"float(argmap['", #, "'])"}&] // Riffle[#, ", "]&,
-    "]\n",
-    "    threads = int(os.environ.get('THREADS', '1'))\n",
-    "    libfile = './sum_pylink.so'\n",
-    "    lib = psd.integral_interface.IntegralLibrary(libfile)\n",
-    "    lib.use_Qmc(transform='korobov3', cputhreads=threads, verbosity=1)\n",
-    "    int_wo_prefactor, prefactor, int_with_prefactor = lib(real_parameters=parameters, verbose=True, epsrel=1e-4, epsabs=1e-18, wall_clock_limit=6*60*60)\n",
-    "    print(int_with_prefactor, file=sys.stderr)\n",
-    "    result = '{' + ',\\n '.join(\n",
-    "        '{%s,\\n  %s}' % psd.integral_interface.series_to_mathematica(line)\n",
-    "        for line in int_with_prefactor.splitlines()\n",
-    "    ) + '}'\n",
-    "    print(result)\n"
-  ];
-  Print["* Making ", basedir, "/Makefile"];
-  MaybeMkFile[basedir <> "/Makefile",
-    "THREADS ?= 1\n",
-    "RUN ?=\n",
-    "\n",
-    "compile.done: sum_pylink.so\n",
-    "\tdate >$@\n",
-    "integrate: sum_value.m\n",
-    "\n",
-    "sum_pylink.so: compile.py\n",
-    "\t${RUN} python3 compile.py\n",
-    "\n",
-    "sum_value.m: sum_pylink.so invariants.txt\n",
-    "\ttouch -t 199001010000 $@\n",
-    "\t${RUN} python3 integrate.py $$(cat invariants.txt) >$@ 2>$@.log || rm -f $@\n"
+    "      processes = nthreads,\n",
+    "    )\n",
+    "    subprocess.check_call(['make', '-C', 'sum', '-j', str(nthreads), 'disteval.done'])\n",
+    "    subprocess.check_call(['cp', '-a', 'sum/disteval', cwd])\n",
+    "    subprocess.check_call(['rm', '-rf', 'sum'])\n"
   ];
 ]
-Options[SecDecPrepareSum] = {Order -> 0, ExtraRealParameters -> {}};
+Options[SecDecPrepareSum] = {Order -> 0, IntegralPrefactors -> <||>, InvariantSignMap -> None};
+
+(* Evaluate the sums contained in a given pySecDec integration
+ * library. The library is assume to have been prepared by
+ * [[SecDecPrepareSum]], and compiled.
+ *)
+SecDecIntegrateSum[path_String, invariantmap_List, OptionsPattern[]] :=
+Module[{tmp, result, regulators},
+  tmp = MkTemp["pysecdec", ".output.json"];
+  SafeRun["echo python3 -m pySecDec.disteval '", path, "' "
+    "--epsrel=", OptionValue[EpsRel] // N // CForm, " ",
+    "--epsabs=", OptionValue[EpsAbs] // N // CForm, " ",
+    "--format=json ",
+    "--lattice-candidates=11 ",
+    invariantmap // Sort // MapReplace[(k_ -> v_) :> {k, "=", v//N//CForm}] // Riffle[#, " "]&, " ",
+    ">'", tmp, "' || rm -f '", tmp, "'"
+  ];
+  SafeRun["python3 -m pySecDec.disteval '", path, "' "
+    "--epsrel=", OptionValue[EpsRel] // N // CForm, " ",
+    "--epsabs=", OptionValue[EpsAbs] // N // CForm, " ",
+    "--format=json ",
+    "--lattice-candidates=11 ",
+    invariantmap // Sort // MapReplace[(k_ -> v_) :> {k, "=", v//N//CForm}] // Riffle[#, " "]&, " ",
+    ">'", tmp, "' || rm -f '", tmp, "'"
+  ];
+  result = Import[tmp];
+  If[tmp === $Failed, Error["Could not open ", tmp, "; pySecDec has failed"]];
+  DeleteFile[tmp];
+  result = result // Association;
+  regulators = result["regulators"] // Map[ToExpression];
+  <|
+    "sums" -> (
+      result["sums"] // Association // Map[MapReplace[
+        {regpow_List, {re_, im_}, {dre_, dim_}} :>
+        {regulators^regpow // Apply[Times], Complex[re, im], Complex[dre, dim]}
+      ]]
+    ),
+    "integrals" -> (
+      result["integrals"] // Association // Map[MapReplace[
+        {regpow_List, {re_, im_}, {dre_, dim_}} :>
+        {regulators^regpow // Apply[Times], Complex[re, im], Complex[dre, dim]}
+      ]]
+    )
+  |>
+]
+Options[SecDecIntegrateSum] = {
+    EpsRel -> 10.^-3,
+    EpsAbs -> 10.^-8
+};
 
 (* Return the leading expansion orders in 'eps' of a list of
  * integrals computed via pySecDec.

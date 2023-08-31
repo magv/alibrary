@@ -24,7 +24,9 @@ Get["alibrary.m"];
 Get[$Apath <> "/amodel-qcd.m"];
 
 (* We shall calculate the corrections of order $\alpha_s^\text{NLOOPS}$,
- * so define `NLOOPS`.
+ * but in principle we can be completely general. Let us define
+ * the number of loops as the `NLOOPS` variable, and use it
+ * everywhere below.
  *)
 
 NLOOPS = 2;
@@ -109,16 +111,16 @@ Print["Non-zero amplitudes: ", amplitudes3//Count[Except[0]], " of ", amplitudes
  * To this end, start with the set of denominators per diagram.
  *)
 
-loopmomenta = diagrams // CaseUnion[l1|l2|l3|l4|l5];
-externalmomenta = diagrams // CaseUnion[q|q1|q2|q3|q4|q5|p1|p2|p3|p4|p5];
-Print["External momenta: ", externalmomenta];
-Print["Loop momenta: ", loopmomenta];
-FailUnless[Length[loopmomenta] === NLOOPS];
+loopMomenta = diagrams // CaseUnion[l1|l2|l3|l4|l5];
+externalMomenta = diagrams // CaseUnion[q|q1|q2|q3|q4|q5|p1|p2|p3|p4|p5];
+Print["External momenta: ", externalMomenta];
+Print["Loop momenta: ", loopMomenta];
+FailUnless[Length[loopMomenta] === NLOOPS];
 
-denominatorsets = amplitudes3 // NormalizeDens // Map[
-  CaseUnion[_den] /* Select[NotFreeQ[Alternatives@@loopmomenta]]
+denominatorSets = amplitudes3 // NormalizeDens // Map[
+  CaseUnion[_den] /* Select[NotFreeQ[Alternatives@@loopMomenta]]
 ];
-Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union // Length];
+Print["Unique denominator sets: ", denominatorSets // DeleteCases[{}] // Union // Length];
 
 (* In principle we could define the integral families by the
  * denominator sets above, one family per denominator set. This
@@ -142,20 +144,20 @@ Print["Unique denominator sets: ", denominatorsets // DeleteCases[{}] // Union /
  *)
 
 $Feynson = "feynson";
-momentamaps = SymmetryMaps[denominatorsets, loopmomenta];
-Print["Found ", momentamaps // DeleteCases[{}] // Length, " momenta mappings"];
+momentaMaps = SymmetryMaps[denominatorSets, loopMomenta];
+Print["Found ", momentaMaps // DeleteCases[{}] // Length, " momenta mappings"];
 
-symmetrizeddenominatorsets =
-  MapThread[ReplaceAll, {denominatorsets, momentamaps}] //
+symmetrizedDenominatorSets =
+  MapThread[ReplaceAll, {denominatorSets, momentaMaps}] //
   NormalizeDens;
 
 (* Then, the set of unique supersets of the denominator sets is
  * the set of integral families we need.
  *)
 
-{denominatorsupersets, supersetindices} =
-  UniqueSupertopologyMapping[symmetrizeddenominatorsets];
-Print["Total integral families: ", denominatorsupersets//Length];
+{denominatorSupersets, supersetIndices} =
+  UniqueSupertopologyMapping[symmetrizedDenominatorSets];
+Print["Total integral families: ", denominatorSupersets//Length];
 
 (* Let us then construct the IBP basis objects for each unique
  * denominator superset. These objects are just associations
@@ -167,9 +169,9 @@ Print["Total integral families: ", denominatorsupersets//Length];
  * complete it; [[CompleteIBPBasis]] will do this for us.
  *)
 
-bases = denominatorsupersets //
+bases = denominatorSupersets //
   MapIndexed[CompleteIBPBasis[
-    First[#2], #1 // NormalizeDens // Sort, loopmomenta, externalmomenta, {sp[q,q]->sqrq}
+    First[#2], #1 // NormalizeDens // Sort, loopMomenta, externalMomenta, {sp[q,q]->sqrq}
   ]&];
 
 (* ## Amplitude conversion
@@ -180,17 +182,19 @@ bases = denominatorsupersets //
  * One practical thing to start with is to identify the set of
  * sectors (integral family subsets) that correspond to scaleless
  * integrals. This is also done with [Feynson].
+ *
+ * [feynson]: https://github.com/magv/feynson
  *)
 
-zerosectors = ZeroSectors[bases];
+zeroSectors = ZeroSectors[bases];
 
 (* Next, just call FORM to do all the tensor summation and
  * conversion to IBP families.
  *)
 
 amplitudesB =
-  MapThread[ReplaceAll, {amplitudes3, momentamaps}] //
-  # * BID^supersetindices & //
+  MapThread[ReplaceAll, {amplitudes3, momentaMaps}] //
+  # * BID^supersetIndices & //
   RunThroughForm[{
     "#call contractmomenta\n",
     "#call sort(after-contractmomenta)\n",
@@ -205,7 +209,7 @@ amplitudesB =
     "#call contractmomenta\n",
     FormCallToB[bases],
     "id mt1^2 = mt2;\n",
-    FormCallZeroSectors[zerosectors]
+    FormCallZeroSectors[zeroSectors]
   }] //
   MapWithProgress[FasterFactor];
 
@@ -215,130 +219,146 @@ FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
  * 
  * Next, lets do the IBP reduction.
  *
- * We'll use [[KiraIBP]], a simple interface to IBP with [Kira].
+ * We’ll use [[KiraIBP]], a simple interface to IBP with [Kira].
  * It is probably too simplistic to work automatically for larger
  * examples, but for this problem it’s ideal.
  *
  * [kira]: https://kira.hepforge.org/
+ *
+ * Note that for best performance IBP reduction should be
+ * performed with one of the mass scales set to `1`. This is
+ * possible because we can always restore the overall power of
+ * that mass scale by dimensional analysys at the end of the
+ * calculation.
+ *
+ * For this reason, we will instruct Kira to set `mt2` to `1`,
+ * and will do the same replacement in the rest of the amplitude
+ * ourselves.
  *)
 
-amplitudesBibp = amplitudesB // KiraIBP[bases, ReplaceByOne->mt2];
-
-(* Here we use ReplaceByOne to speed up the IBP reduction. Note
- * that Kira can restore the powers of mt2 after the reduction
- * is over, but this is fairly slow at the moment. For this
- * reason we'll skip that, and update the rest of the amplitude
- * to this convention too.
- *)
-
-amplitudesBibp = amplitudesBibp // ReplaceAll[mt2->1];
+amplitudesBibp = amplitudesB //
+  ReplaceAll[mt2 -> 1] //
+  KiraIBP[bases, ReplaceByOne->mt2];
 
 (* The full amplitude is just the sum of the diagram amplitudes.
  *)
 
-fullamplitude = amplitudesBibp // Apply[Plus] // Bracket[#, _B, Factor]&;
+fullAmplitude = amplitudesBibp // Apply[Plus] // Bracket[#, _B, Factor]&;
 
-(* A good correctness check is to see if there is any Xi dependence
- * left. None should remain.
+(* A good correctness check is to see if the result is
+ * gauge-independent. Because our [[QCD Feynman rules]] use the
+ * $R_\xi$ gauge and set `Xi`=$\xi-1$, we can check if there is
+ * any `Xi` dependence left: none should remain.
  *)
 
-FailUnless[FreeQ[fullamplitude, Xi]];
+FailUnless[FreeQ[fullAmplitude, Xi]];
 
-(* Now we have reduced the amplitude to master integrals.
- *
+(* We now have the amplitude reduced to master integrals.
+ *)
+
+Print["Master integral count: ", fullAmplitude // CaseUnion[_B] // Length];
+
+(*
  * ## Numerical evaluation
  *
  * The final step is to insert the values of the masters. Of
  * course the masters here are known analytically, but as an
- * example let us evaluate them numerically with [pySecDec],
- * each up to $\varepsilon^2$.
+ * example let us evaluate them numerically with [pySecDec].
  *
  * [pySecDec]: https://github.com/gudrunhe/secdec
- *)
-
-masters = amplitudesBibp  // CaseUnion[_B];
-Print["Master integrals: ", masters // Length];
-
-(* The compilation here might take a while. Some of the stuff
- * being compiled will actually not be used by us, but we still
- * need to wait for it. The next release of pySecDec will allow
- * us to skip this.
  *
- * There’s also a way to run this step in parallel, across a
- * computing cluster even. See [[SecDecCompile]] for details.
- *)
-
-EPSORDER = 2;
-SecDecCompile["secdectmpdir", bases, masters // Map[{#, EPSORDER}&]];
-
-(* The integration can also be performed in parallel, on a
- * cluster: see [[SecDecIntegrate]] for details. Here let us
- * just run it locally; it won't take much time.
- *)
-
-pspoint = { sqrq -> 120/100, mt2 -> 34/100 };
-
-{mastervalues, mastererrors} =
-  SecDecIntegrate["secdectmpdir", masters, pspoint] //
-  Transpose;
-
-(* In pySecDec, as well as most numerical integration programs,
- * each result is assumed to be a normally distributed random
- * variable with some given standard deviation. This is why in
- * addition to `mastervalues` we also receive `mastererrors`
- * from [[SecDecIntegrate]].
+ * Although pySecDec was originally designed to evaluate single
+ * integrals, there are optimizations that can be performed when
+ * evaluating whole amplitudes, and pySecDec knows how to apply
+ * those. This is why our strategy will be to give pySecDec the
+ * whole `fullAmplitude`, and ask to evaluate it, instead of
+ * asking for each integral separately.
  *
- * To get the final result (the amplitude) and its uncertainty,
- * remember that
+ * To this end, let’s inspect the variables our amplitude depends
+ * on:
+ *)
+
+Print["Variables in the amplitude: ", fullAmplitude // CaseUnion[_Symbol]];
+Print["Functions in the amplitude: ", fullAmplitude // CaseUnion[(h_)[___]:>h]];
+
+(* Variables like number of quark flavours and SU(N) constants
+ * can be set to numbers to evaluate `fullAmplitude` as a single
+ * numerical value, but because the master integrals themselves
+ * do not depend on these variables, we can factor them out and
+ * split `fullAmplitude` into a sum of prefactors (that we will
+ * keep symbolically) multiplied by sums of integrals (that we
+ * will evaluate numerically).
+ *)
+
+fullAmplitudeByPrefactor = fullAmplitude //
+  ReplaceAll[Complex[re_, im_] :> re + im*ImagI] //
+  BracketAssociation[Ca | Cf | Na | Tf | d33 | d44 | Nc | Nf | Nft | gH | gs | Xi | ImagI | _flvsum | _flvsumt];
+
+Print["Symbolic prefactors:"];
+fullAmplitudeByPrefactor // Keys // PrintIndexed;
+
+(* Now we are ready to prepare the pySecDec integration library.
+ * Let us ask pySecDec to expand the amplitudes to order
+ * $\mathcal{O}(\varepsilon^2)$.
+ *)
+
+basesWithoutMt2 = bases // Map[
+  (Append[#, <|"invariants" -> DeleteCases[#["invariants"], mt2]|>]&) /*
+  Map[ReplaceAll[mt2 -> 1]]
+];
+
+SecDecPrepareSum[
+  "secdectmpdir",
+  basesWithoutMt2,
+  fullAmplitudeByPrefactor // KeyMap[InputForm/*ToString] // Map[ReplaceAll[d->4-2*eps]],
+  Order->2];
+
+(* After the library is prepared, it needs to be compiled. This
+ * is done by just running the `compile.py` script inside:
+ *)
+
+SafeRun["python3 secdectmpdir/compile.py"];
+
+(* The compilation here automatically runs in parallel, but it
+ * might still take a while. Once it is done, we are ready for
+ * integration.
  *
- * $$
- *     C_1 \mathcal{N}(x_1, \sigma_1) + C_2 \mathcal{N}(x_2, \sigma_2) =
- *         \mathcal{N}(C_1 x_1 + C_2 x_2, \sqrt{C_1^2 \sigma_1^2 + C_2^2 \sigma_2^2}):
- * $$
+ * Once we have selected some values for the parameters,
+ * we can integrate via [[SecDecIntegrateSum]]:
  *)
 
-valueanderror = fullamplitude  /.
-  d -> 4 - 2*eps /.
-  pspoint /.
-  MapThread[Rule, {
-    masters,
-    mastervalues + MapSeries[ERR, mastererrors]
-  }];
+pspoint = { sqrq -> 120/100 };
 
-value = valueanderror /. _ERR -> 0;
+result = SecDecIntegrateSum[
+  "secdectmpdir/disteval/sum.json",
+  pspoint,
+  EpsRel -> 10^-3, 
+  EpsAbs -> 10^-8];
 
-error = valueanderror //
-  Bracket[#, _Symbol | _flvsum | _flvsumt,
-    Expand /*
-    (ReplaceRepeated[#, {
-      ERR[e_] * c_ :>
-        ERR[Sqrt[(Re[e] Re[c])^2 + (Im[e] Im[c])^2] + I Sqrt[(Re[e] Im[c])^2 + (Im[e] Re[c])^2]],
-      ERR[e1_] + ERR[e2_] :>
-        ERR[Sqrt[Re[e1]^2 + Re[e2]^2] + I Sqrt[Im[e1]^2 + Im[e2]^2]]
-    }]&) /*
-    Replace[v_ + ERR[e_] :> e]
-  ]&;
-
-(* Because the full amplitude has symbolic contants in it, let
- * us pretty-print it by separating them.
+(* The integration will automatically run in parallel using all
+ * locally available processors. It can also use the local GPUs,
+ * although for this we would have needed to build the separate
+ * GPU integration libraries during compilation (by setting
+ * the `SECDEC_WITH_CUDA_FLAGS` environment variable to e.g.
+ * `-gencode arch=compute_80,code=sm_80`, if GPUs with CUDA
+ * “Compute Capability” 8.0 are used).
+ *
+ * Once the integration is over, all that is left for us is to
+ * read out the results:
  *)
 
-Print["Value:"];
-value //
-  Normal //
-  BracketAssociation[#, _Symbol | _flvsum | _flvsumt]& //
-  Normal //
-  Map[(
-    Print["+", #[[1]], " *"];
-    Print["  ", #[[2]] // N];
-  )&];
-
-Print["Absolute uncertainty:"];
-error //
-  Normal //
-  BracketAssociation[#, _Symbol | _flvsum | _flvsumt]& //
-  Normal //
-  Map[(
-    Print["+", #[[1]], " *"];
-    Print["  ", #[[2]] // N];
-  )&];
+Print["Amplitude", pspoint // InputForm, "="]
+symbolicPrefactors = result["sums"] // Keys;
+Do[
+  Print["  +", prefactor, " * ("];
+  result["sums"][prefactor] // Map[Replace[
+    {regulators_, value_, error_} :> (
+      Print["    +", regulators // InputForm, "*("];
+      Print["       (", value//InputForm, ") +/- "];
+      Print["       (", error//InputForm, ")"]
+      Print["     )"]
+    )
+  ]];
+  Print["  )"];
+  ,
+  {prefactor, symbolicPrefactors}];
