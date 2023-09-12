@@ -2001,7 +2001,12 @@ SecDecIntegralName[DimShift[integral_B, n_]] :=
  * This might need additional work to correctly convert more
  * forms.
  *)
-ToSympy[ex_] := ex /. Pi -> pi // InputForm // ToString
+ToSympy[ex_] := ex /. Pi -> pi //
+  InputForm //
+  ToString //
+  StringReplace[#, WordBoundary ~~ "Sqrt[" -> "sqrt["]& //
+  StringReplace[#, "[" -> "("]& //
+  StringReplace[#, "]" -> ")"]&
 
 (* Prepare pySecDec files in a given directory for the given
  * list of integrals. These can then be compiled manually by
@@ -2273,7 +2278,7 @@ Module[{sum2int2co, integrals, int2idx, name, basisid, bid2basis, indices, basis
           ReplaceAll[sp -> (sp /* Sort)] //
           Union //
           MapReplace[
-            (sp[p1_, p2_] -> v_) :> {"    ('", p1//InputForm, "*", p2//InputForm, "', '", v//ToSympy, "')"}
+            (sp[p1_, p2_] -> v_) :> {"  ('", p1//InputForm, "*", p2//InputForm, "', '", v//ToSympy, "')"}
           ] // Riffle[#, ",\n"]&,
         "\n]\n"
         }
@@ -2337,7 +2342,7 @@ Module[{sum2int2co, integrals, int2idx, name, basisid, bid2basis, indices, basis
         coefficients //
           Normal //
           MapReplace[(int_ -> coefficient_) :> {
-            "      ", int2idx[int]-1, ": ", coefficient // InputForm // ToString // ToPythonString, ",\n"
+            "      ", int2idx[int]-1, ": ", coefficient // ToSympy // ToPythonString, ",\n"
           }],
         "    },\n"
       }],
