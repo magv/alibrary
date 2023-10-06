@@ -2006,7 +2006,8 @@ ToSympy[ex_] := ex /. Pi -> pi //
   ToString //
   StringReplace[#, WordBoundary ~~ "Sqrt[" -> "sqrt["]& //
   StringReplace[#, "[" -> "("]& //
-  StringReplace[#, "]" -> ")"]&
+  StringReplace[#, "]" -> ")"]& //
+  StringReplace[#, "*^" -> "e"]&
 
 (* Prepare pySecDec files in a given directory for the given
  * list of integrals. These can then be compiled manually by
