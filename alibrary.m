@@ -923,8 +923,8 @@ IntegralMapOntoSector[sector_B, integrals_List, bases_List] :=
  * Negative indices are not supported here.
  *)
 IntegralMapOntoFamily[basis_Association, integrals_List, bases_List] :=
-  MapIntegralsOntoSectors[
-    B[basis["bid"], basis["denominators"] // MapReplace[{den[__,irr]->0, _den->1}]],
+  IntegralMapOntoSectors[
+    {B[basis["id"], basis["denominators"] // MapReplace[{den[__,irr]->0, _den->1}] // Apply[Sequence]]},
     integrals,
     bases]
 
