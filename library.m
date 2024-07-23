@@ -1081,30 +1081,38 @@ Ginsh[ex__] := Module[{tmpsrc, tmpdst, result},
     StringSplit[#, "output"][[-1]]& //
     ToExpression
 ]
-GinshEval[x:G[w__, 1], ndigits_] := GinshEval[x, ndigits] =
-  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(G({", Riffle[{w},","], "},1))"]], ndigits]
+ClearAll[GinshEval]
+GinshEval[x:Hlog[n_, {w__}], ndigits_] := GinshEval[x, ndigits] =
+  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"]], ndigits]
+GinshEval[x:G[w__, n_], ndigits_] := GinshEval[x, ndigits] =
+  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"]], ndigits]
 GinshEval[x:Mzv[w__], ndigits_] := GinshEval[x, ndigits] =
   N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(zeta({",
-    {w} // Abs // Riffle[#, ","]&, "},{",
-    {w} // Sign // Riffle[#, ","]&, "}))"]], ndigits]
-GinshEval[ex_, ndigits_] := ex // ReplaceAll[x:(G[__, 1]|Mzv[__]) :> GinshEval[x, ndigits]]
+    {w} // Abs // Map[InputForm] // Riffle[#, ","]&, "},{",
+    {w} // Sign // Map[InputForm] // Riffle[#, ","]&, "}))"]], ndigits]
+GinshEval[ex_, ndigits_] := ex // ReplaceAll[x:(Hlog[_,{__}]|G[__,_]|Mzv[__]) :> GinshEval[x, ndigits]]
 GinshEval[ndigits_] := GinshEval[#, ndigits]&
 
-ToGinsh[x:G[w__, 1], ndigits_] :=
-  {"Digits=", ndigits, ";output;evalf(G({", Riffle[{w},","], "},1))"}
+ClearAll[ToGinsh]
+ToGinsh[x:Hlog[n_, {w__}], ndigits_] :=
+  {"Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"}
+ToGinsh[x:G[w__, n_], ndigits_] :=
+  {"Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"}
 ToGinsh[x:Mzv[w__], ndigits_] :=
   {"Digits=", ndigits, ";output;evalf(zeta({",
-    {w} // Abs // Riffle[#, ","]&, "},{",
-    {w} // Sign // Riffle[#, ","]&, "}))"}
+    {w} // Abs // Map[InputForm] // Riffle[#, ","]&, "},{",
+    {w} // Sign // Map[InputForm] // Riffle[#, ","]&, "}))"}
+ClearAll[GinshPEvalMemo];
+ClearAll[GinshPEval];
 GinshPEvalMemo[ex_, ndigits_] := ex
 GinshPEval[ex_, ndigits_, maxjobs_] := Module[{tmpsrc, tmpdst, vals},
-  ex /. x:(G[__, 1]|Mzv[__]) :> GinshPEvalMemo[x, ndigits] // SubexpressionApply[(
+  ex /. x:(Hlog[_,{__}]|G[__,_]|Mzv[__]) :> GinshPEvalMemo[x, ndigits] // SubexpressionApply[(
     tmpsrc0 = MkTemp["g", ".cmd"];
     tmpsrc = # // Map[MkTemp["g", ".sh"]&];
     tmpdst = tmpsrc // Map[# <> ".out"&];
     MapThread[MkFile, {tmpsrc, # // Map[{ToGinsh[#, ndigits], ";exit;"}&]}];
     MkFile[tmpsrc0, MapThread[{"ginsh <", #1, " >", #2, "\n"}&, {tmpsrc, tmpdst}]];
-    SafeRun[MkString["cat ", tmpsrc0, " | xargs -P", maxjobs, " -L1 -IARG sh -c 'ARG'"]];
+    SafeRun[MkString["cat ", tmpsrc0, " | xargs -P", maxjobs, " -IARG sh -c 'ARG'"]];
     vals = tmpdst // Map[
       ReadString /*
       StringReplace["E" -> "*10^"] /*
@@ -1116,7 +1124,7 @@ GinshPEval[ex_, ndigits_, maxjobs_] := Module[{tmpsrc, tmpdst, vals},
     MapThread[(GinshEval[#1, ndigits] = #2)&, {#, vals}];
     MapThread[(GinshPEvalMemo[#1, ndigits] = #2)&, {#, vals}];
     vals
-  )&, #, G[__, 1]|Mzv[__]]&
+  )&, #, (Hlog[_,{__}]|G[__,_]|Mzv[__])]&
 ]
 
 (* PSLQ *)
