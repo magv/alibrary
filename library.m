@@ -1066,67 +1066,6 @@ MkFireRulesFile[filename_String, rules_List] :=
 MkFireIntegralsFile[filename_String, ints_List] :=
   SafePut[ints // MapReplace[B[bid_, idx__] :> {bid, {idx}}], filename]
 
-(*
- * GINAC
- *)
-Ginsh[ex__] := Module[{tmpsrc, tmpdst, result},
-  tmpsrc = MkTemp["g", ".ginsh"];
-  tmpdst = tmpsrc <> ".out";
-  MkFile[tmpsrc, ex, ";exit;"];
-  SafeRun["ginsh ", tmpsrc, " >", tmpdst];
-  result = ReadString[tmpdst];
-  If[Not[StringQ[result]], Error["Failed to load ", tmpdst]];
-  DeleteFile[{tmpsrc, tmpdst}];
-  result // StringReplace["E" -> "*10^"] //
-    StringSplit[#, "output"][[-1]]& //
-    ToExpression
-]
-ClearAll[GinshEval]
-GinshEval[x:Hlog[n_, {w__}], ndigits_] := GinshEval[x, ndigits] =
-  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"]], ndigits]
-GinshEval[x:G[w__, n_], ndigits_] := GinshEval[x, ndigits] =
-  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"]], ndigits]
-GinshEval[x:Mzv[w__], ndigits_] := GinshEval[x, ndigits] =
-  N[Ginsh[MkString["Digits=", ndigits, ";output;evalf(zeta({",
-    {w} // Abs // Map[InputForm] // Riffle[#, ","]&, "},{",
-    {w} // Sign // Map[InputForm] // Riffle[#, ","]&, "}))"]], ndigits]
-GinshEval[ex_, ndigits_] := ex // ReplaceAll[x:(Hlog[_,{__}]|G[__,_]|Mzv[__]) :> GinshEval[x, ndigits]]
-GinshEval[ndigits_] := GinshEval[#, ndigits]&
-
-ClearAll[ToGinsh]
-ToGinsh[x:Hlog[n_, {w__}], ndigits_] :=
-  {"Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"}
-ToGinsh[x:G[w__, n_], ndigits_] :=
-  {"Digits=", ndigits, ";output;evalf(G({", Riffle[{w}//Map[InputForm],","], "},",n//InputForm,"))"}
-ToGinsh[x:Mzv[w__], ndigits_] :=
-  {"Digits=", ndigits, ";output;evalf(zeta({",
-    {w} // Abs // Map[InputForm] // Riffle[#, ","]&, "},{",
-    {w} // Sign // Map[InputForm] // Riffle[#, ","]&, "}))"}
-ClearAll[GinshPEvalMemo];
-ClearAll[GinshPEval];
-GinshPEvalMemo[ex_, ndigits_] := ex
-GinshPEval[ex_, ndigits_, maxjobs_] := Module[{tmpsrc, tmpdst, vals},
-  ex /. x:(Hlog[_,{__}]|G[__,_]|Mzv[__]) :> GinshPEvalMemo[x, ndigits] // SubexpressionApply[(
-    tmpsrc0 = MkTemp["g", ".cmd"];
-    tmpsrc = # // Map[MkTemp["g", ".sh"]&];
-    tmpdst = tmpsrc // Map[# <> ".out"&];
-    MapThread[MkFile, {tmpsrc, # // Map[{ToGinsh[#, ndigits], ";exit;"}&]}];
-    MkFile[tmpsrc0, MapThread[{"ginsh <", #1, " >", #2, "\n"}&, {tmpsrc, tmpdst}]];
-    SafeRun[MkString["cat ", tmpsrc0, " | xargs -P", maxjobs, " -IARG sh -c 'ARG'"]];
-    vals = tmpdst // Map[
-      ReadString /*
-      StringReplace["E" -> "*10^"] /*
-      (StringSplit[#, "output"][[-1]]&) /*
-      ToExpression /*
-      (N[#, ndigits]&)
-    ];
-    DeleteFile[Join[tmpsrc, tmpdst, {tmpsrc0}]];
-    MapThread[(GinshEval[#1, ndigits] = #2)&, {#, vals}];
-    MapThread[(GinshPEvalMemo[#1, ndigits] = #2)&, {#, vals}];
-    vals
-  )&, #, (Hlog[_,{__}]|G[__,_]|Mzv[__])]&
-]
-
 (* PSLQ *)
 
 MzvLinearBasis[mzvs_List, {0}] := 1
