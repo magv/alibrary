@@ -1539,7 +1539,6 @@ LoadMzvTable[filename_String] := (
 );
 ReduceMzv[ex_] := ex // ToMzv // MzvToHpl // ReplaceAll[Hpl[1, w_List] :> H1 @@ w] // ReplaceAll[H1[w__] :> Hpl[1, {w}]] // ToMzv
 
-
 (* ## 2dHPL
  *)
 
@@ -1548,6 +1547,63 @@ Hpl2dToHlog[ex_] := ex /. {
     Hpl2d[x_, w:{(0 | 1 | 1-z_Symbol | z_Symbol) ..}] :> ((-1)^Count[w, 1 | 1-zz_Symbol] Hlog[x, w // Map[Replace[zz_Symbol -> -zz]]]),
     h_Hpl2d :> Error["Can't convert to Hlog: ", h]
 }
+
+(* ## GiNaC
+ *)
+
+(* Convert an expression into Ginsh (i.e. GiNaC) notation.
+ *)
+ClearAll[ToGinsh]
+ToGinsh[Hlog[arg_, w_List]] :=
+  {"G({", w // Map[ToGinsh] // Riffle[#, ","]&, "},", arg // ToGinsh,")"}
+ToGinsh[G[w__, arg_]] :=
+  {"G({", {w} // Map[ToGinsh] // Riffle[#, ","]&, "},", arg // ToGinsh,")"}
+ToGinsh[Mzv[w__]] :=
+  {"zeta({",
+    {w} // Map[Abs/*ToGinsh] // Riffle[#, ","]&, "},{",
+    {w} // Map[Sign/*ToGinsh] // Riffle[#, ","]&, "})"}
+ToGinsh[x:(_Integer|_Rational)] := InputForm[x]
+ToGinsh[x_Integer] := InputForm[x]
+ToGinsh[x_Rational] := InputForm[x]
+ToGinsh[Complex[0,im_]] := {"I*(", im // ToGinsh, ")"}
+ToGinsh[Complex[re_,im_]] := {re // ToGinsh, "+I*(", im // ToGinsh, ")"}
+ToGinsh[x_] := Error["Cannot convert to Ginsh: ", x]
+
+(* Convert a Ginsh (i.e. GiNaC) string into an expression.
+ *)
+FromGinsh[s_String] := s // StringReplace["E" -> "*10^"] // ToExpression
+
+(* Evaluate special functions (G[], Hlog[], Mzv[]) in an expression
+ * with Ginsh (i.e. GiNaC) to a given number of decimal digits.
+ *
+ * Note that a few more digits than specified can be returned
+ * by Ginsh.
+ *)
+GinshN[ex_, ndigits_Integer, OptionsPattern[]] :=
+Module[{tmpsrc0, tmpsrc, tmpdst, vals},
+  SubexpressionApply[
+    (
+      tmpsrc0 = MkTemp["g", ".cmd"];
+      tmpsrc = # // Map[MkTemp["g", ".sh"]&];
+      tmpdst = tmpsrc // Map[# <> ".out"&];
+      MapThread[MkFile, {tmpsrc, # // Map[{
+        "Digits=", ndigits, ";__OUTPUT__;evalf(",
+        ToGinsh[#],
+        ");exit;"}&]}];
+      MkFile[tmpsrc0, MapThread[{"ginsh <'", #1, "' >'", #2, "'\n"}&, {tmpsrc, tmpdst}]];
+      SafeRun[MkString["xargs -P", OptionValue[MaxProcesses], " -IARG sh -c 'ARG' <'", tmpsrc0, "'"]];
+      vals = tmpdst // Map[
+        ReadString /*
+        (StringSplit[#, "__OUTPUT__"][[-1]]&) /*
+        FromGinsh
+      ];
+      DeleteFile[Join[tmpsrc, tmpdst, {tmpsrc0}]];
+      vals
+    )&,
+    ex,
+    (Hlog[_,_List]|G[__,_]|Mzv[__])]
+]
+Options[GinshN] = {MaxProcesses -> 4};
 
 (*
  * ## Graph construction from propagators

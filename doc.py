@@ -171,6 +171,8 @@ class DocPreRenderer(mistletoe.HTMLRenderer):
         self._toc.append((token.level, title))
         self._xref[title] = (self._url, "#" + name_to_id(title))
         return ""
+    def render_cross_reference_token(self, token):
+        return ""
 
 class DocRenderer(mistletoe.HTMLRenderer):
     def __init__(self, url, xref, toc, code_language="wl"):
