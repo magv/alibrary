@@ -56,6 +56,8 @@ $QGrafModel = "\
 
 $QGrafOptions = "";
 
+$QGrafExtra = "";
+
 (* ## Field classification
  *)
 

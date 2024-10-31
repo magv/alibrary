@@ -20,6 +20,8 @@ $QGrafModel = "\
 
 $QGrafOptions = "nosnail,notadpole";
 
+$QGrafExtra = "";
+
 (* ## Field classification
  *)
 

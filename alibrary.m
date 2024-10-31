@@ -91,11 +91,12 @@ Module[{edges, SS, II, EE},
  * the global variables instead.
  *)
 Diagrams[fieldsi_List, fieldso_List, loops_Integer, OptionsPattern[]] :=
-Module[{model, options, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
+Module[{model, options, nomasspat, extra, tmpdir, tmpoutput, momi, momo, i, result},
   model = Replace[OptionValue[QGrafModel], None -> $QGrafModel];
   options = Replace[OptionValue[QGrafOptions], None -> $QGrafOptions];
   qgraf = Replace[OptionValue[QGraf], None -> $QGraf];
   nomasspat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
+  extra = Replace[OptionValue[QGrafExtra], None -> If[ValueQ[$QGrafExtra], $QGrafExtra, ""]];
   FailUnless[MatchQ[model, _String]];
   tmpdir = MkTemp["qgraf", ""];
   EnsureDirectory[tmpdir];
@@ -121,14 +122,15 @@ Module[{model, options, nomasspat, tmpdir, tmpoutput, momi, momo, i, result},
       Table[
         If[MatchQ[fieldso[[i]], nomasspat], {"false=plink[", -2*i, "];\n"}, ""],
         {i, Length[fieldso]}],
-      ""]
+      ""],
+    extra
   ];
   SafeRun[MkString["cd '", tmpdir, "' && '", qgraf, "'"]];
   result = SafeGet[tmpdir <> "/output.m"];
   EnsureNoDirectory[tmpdir];
   result
 ]
-Options[Diagrams] = {QGraf -> None, QGrafModel -> None, QGrafOptions -> None, MasslessFieldPattern -> None};
+Options[Diagrams] = {QGraf -> None, QGrafModel -> None, QGrafOptions -> None, MasslessFieldPattern -> None, QGrafExtra -> None};
 
 (* By default look for QGraf in PATH. *)
 If[Not[MatchQ[$QGraf, _String]], $QGraf = "qgraf"; ];
