@@ -2445,7 +2445,7 @@ Options[SecDecIntegrateSum] = {
 (* Return the leading expansion orders in 'eps' of a list of
  * integrals computed via pySecDec.
  *)
-SecDecLeadingOrders[base_List, integrals_List, OptionsPattern[]] :=
+SecDecLeadingOrders[bases_List, integrals_List, OptionsPattern[]] :=
 Module[{bid2basis, tmpscript, tmpresult},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   tmpscript = MkTemp["psdlo", ".py"];
