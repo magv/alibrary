@@ -1071,7 +1071,7 @@ FormCallToB[bases_List] := MkString[
  *)
 KiraBasisName[bid_Integer] := MkString["b", IntegerDigits[bid, 10, 5]]
 KiraBasisName[name_String] := name
-KiraBasisName[DimShift[name_, n_]] := MkString[KiraBasisName[name], "_dimshift", n]
+KiraBasisName[DimShift[name_, n_Integer]] := MkString[KiraBasisName[name], "_dimshift", If[n < 0, {"neg", -n}, n]]
 
 (* Create Kira’s `kinematics.yaml` config file.
  *)
@@ -1383,6 +1383,19 @@ SectorUnion[sectors_List] := Module[{},
     Apply[Join]
 ]
 
+(* Format a linear combination of B[...] as a Kira equation
+ *)
+KiraEquation[expr_] := expr //
+  Bracket[#, _B|_DimShift|_amplitude, Factor /* COEF]& //
+  Terms //
+  MapReplace[{
+      B[bid_, idx___]*COEF[co_] :>
+        {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
+      DimShift[B[bid_, idx___], n_]*COEF[co_] :>
+        {KiraBasisName[DimShift[bid, n]], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
+      amplitude[idx___]*COEF[co_] :>
+        {"amplitude[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"}
+    }]
 
 (* Create a list of preferred masters in Kira syntax.
  * The masters themselves can be both single integrals
@@ -1396,30 +1409,21 @@ Module[{COEF},
         B[bid_, idx___] :>
           {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]\n"},
         DimShift[B[bid_, idx___], n_] :>
-          {KiraBasisName[bid], "_dimshift", n, "[", Riffle[{idx}, ","], "]\n"},
+          {KiraBasisName[DimShift[bid, n]], "[", Riffle[{idx}, ","], "]\n"},
         amplitude[idx___] :>
           {"amplitude[", Riffle[{idx}, ","], "]\n"}
       }]
   ]
 ]
 
+(* Format a list of equations (linear combinations of B[...] or
+ * DimShift[...] expressions) in Kira format, and save them to
+ * a file.
+ *)
 MkKiraEquations[filename_String, expressions_List] :=
 Module[{COEF},
   MaybeMkFile[filename,
-    expressions //
-      Bracket[#, _B|_DimShift|_amplitude, Factor /* COEF]& //
-      Map[
-        Terms /*
-        MapReplace[{
-            B[bid_, idx___]*COEF[co_] :>
-              {KiraBasisName[bid], "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
-            DimShift[B[bid_, idx___], n_]*COEF[co_] :>
-              {KiraBasisName[bid], "_dimshift", n, "[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"},
-            amplitude[idx___]*COEF[co_] :>
-              {"amplitude[", Riffle[{idx}, ","], "]*(", co // InputForm // ToString // StringReplace[" "->""], ")\n"}
-          }]
-      ] //
-        Riffle[#, "\n"]&
+    expressions // Map[KiraEquation] // Riffle[#, "\n"]&
   ]
 ]
 
@@ -1753,7 +1757,12 @@ KiraApplyResultsInBulk[confdir_String, bases_List] := KiraApplyResultsInBulk[#, 
  *)
 LoadKiraMap[filename_] := Module[{table},
   FailUnless[FileExistsQ[filename]];
-  table = RunThrough["sed -E -e 's/b0*([0-9]+)_dimshift([0-9]+)\\[/B[DimShift[\\1,\\2],/g' -e 's/b0*([0-9]*)\\[/B[\\1,/g' '" <> filename <> "'", ""];
+  table = RunThrough[MkString["sed -E ",
+      "-e 's/b0*([0-9]+)_dimshift([0-9]+)\\[/B[DimShift[\\1,\\2],/g' ",
+      "-e 's/b0*([0-9]+)_dimshiftneg([0-9]+)\\[/B[DimShift[\\1,-\\2],/g' ",
+      "-e 's/b0*([0-9]*)\\[/B[\\1,/g' ",
+      "'", filename, "'"
+    ], ""];
   FailUnless[MatchQ[table, _List]];
   table /. B[DimShift[bid_, n_], idx___] :> DimShift[B[bid, idx], n]
 ]
@@ -1771,6 +1780,8 @@ LoadKiraMasters[confdir_String] :=
       StringReplace["]" ~~ ___ -> "]"] /*
       StringReplace["b" ~~ x:(DigitCharacter ...) ~~ "_dimshift" ~~ n:(DigitCharacter ...) :>
         "B[DimShift[" <> x <> "," <> n <>"]"] /*
+      StringReplace["b" ~~ x:(DigitCharacter ...) ~~ "_dimshiftneg" ~~ n:(DigitCharacter ...) :>
+        "B[DimShift[" <> x <> ",-" <> n <>"]"] /*
       StringReplace["b" -> "B["] /*
       ToExpression /*
       ReplaceAll[B[DimShift[bid_, n_], idx___] :> DimShift[B[bid, idx], n]]
