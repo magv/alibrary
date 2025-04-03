@@ -166,13 +166,13 @@ unitTrace 4;
     #do i = 1, `MaxGammaTracesPerTerm'
         traceN,`i';
     #enddo
+    #call sort(diractrace-traceN)
     if (match(epsilon4(lor1?, lor2?, lor3?, lor4?)));
       exit "ERROR: diractrace: leftover epsilon4() at the end; is MaxGammaTracesPerTerm too small?";
     endif;
     if (match(gammatrace(?x)));
       exit "ERROR: diractrace: leftover gammatrace() at the end; is MaxGammaTracesPerTerm too small?";
     endif;
-    #call sort(diractrace-traceN)
     id p1?.p2? = dot(p1, p2);
     id p1?(lor1?) = momentum(p1, lor1);
     id momentum(p1?, p2?) = dot(p1, p2);
