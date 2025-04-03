@@ -91,46 +91,52 @@ Module[{edges, SS, II, EE},
  * the global variables instead.
  *)
 Diagrams[fieldsi_List, fieldso_List, loops_Integer, OptionsPattern[]] :=
-Module[{model, options, nomasspat, extra, tmpdir, tmpoutput, momi, momo, i, result},
+Module[{model, options, noMassPattern, extra, tmpDir, momI, momO, i, result},
   model = Replace[OptionValue[QGrafModel], None -> $QGrafModel];
   options = Replace[OptionValue[QGrafOptions], None -> $QGrafOptions];
   qgraf = Replace[OptionValue[QGraf], None -> $QGraf];
-  nomasspat = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
+  noMassPattern = Replace[OptionValue[MasslessFieldPattern], None -> $MasslessFieldPattern];
   extra = Replace[OptionValue[QGrafExtra], None -> If[ValueQ[$QGrafExtra], $QGrafExtra, ""]];
   FailUnless[MatchQ[model, _String]];
-  tmpdir = MkTemp["qgraf", ""];
-  EnsureDirectory[tmpdir];
-  CopyFile[$Apath <> "/qgraf-stylefile", tmpdir <> "/stylefile"];
-  MkFile[tmpdir <> "/modelfile", model];
-  momi = If[Length[fieldsi] == 1, {"q"}, Table["q" <> ToString[i], {i, Length[fieldsi]}]];
-  momo = If[Length[fieldso] == 1, {"q"}, Table["p" <> ToString[i], {i, Length[fieldso]}]];
-  MkFile[tmpdir <> "/qgraf.dat",
+  tmpDir = MkTemp["qgraf", ""];
+  EnsureDirectory[tmpDir];
+  CopyFile[$Apath <> "/qgraf-stylefile", tmpDir <> "/stylefile"];
+  MkFile[tmpDir <> "/modelfile", model];
+  momI = If[Length[fieldsi] == 1, {"q"}, Table["q" <> ToString[i], {i, Length[fieldsi]}]];
+  momO = If[Length[fieldso] == 1, {"q"}, Table["p" <> ToString[i], {i, Length[fieldso]}]];
+  MkFile[tmpDir <> "/qgraf.dat",
     "output='output.m';\n",
     "style='stylefile';\n",
     "model='modelfile';\n",
-    "in=", MapThread[{#1, "[", #2, "]"}&, {fieldsi, momi}] // Riffle[#, ", "]&, ";\n",
-    "out=", MapThread[{#1, "[", #2, "]"}&, {fieldso, momo}] // Riffle[#, ", "]&, ";\n",
+    "in=", MapThread[{#1, "[", #2, "]"}&, {fieldsi, momI}] // Riffle[#, ", "]&, ";\n",
+    "out=", MapThread[{#1, "[", #2, "]"}&, {fieldso, momO}] // Riffle[#, ", "]&, ";\n",
     "loops=", loops, ";\n",
     "loop_momentum=l;\n",
     "options=", options, ";\n",
     If[Length[fieldsi] > 1,
       Table[
-        If[MatchQ[fieldsi[[i]], nomasspat], {"false=plink[", 1-2*i, "];\n"}, ""],
+        If[MatchQ[fieldsi[[i]], noMassPattern], {"false=plink[", 1-2*i, "];\n"}, ""],
         {i, Length[fieldsi]}],
       ""],
     If[Length[fieldso] > 1,
       Table[
-        If[MatchQ[fieldso[[i]], nomasspat], {"false=plink[", -2*i, "];\n"}, ""],
+        If[MatchQ[fieldso[[i]], noMassPattern], {"false=plink[", -2*i, "];\n"}, ""],
         {i, Length[fieldso]}],
       ""],
     extra
   ];
-  SafeRun[MkString["cd '", tmpdir, "' && '", qgraf, "'"]];
-  result = SafeGet[tmpdir <> "/output.m"];
-  EnsureNoDirectory[tmpdir];
+  SafeRun[MkString["cd '", tmpDir, "' && '", qgraf, "'"]];
+  result = SafeGet[tmpDir <> "/output.m"];
+  EnsureNoDirectory[tmpDir];
   result
 ]
-Options[Diagrams] = {QGraf -> None, QGrafModel -> None, QGrafOptions -> None, MasslessFieldPattern -> None, QGrafExtra -> None};
+Options[Diagrams] = {
+  QGraf -> None,
+  QGrafModel -> None,
+  QGrafOptions -> None,
+  MasslessFieldPattern -> None,
+  QGrafExtra -> None
+};
 
 (* By default look for QGraf in PATH. *)
 If[Not[MatchQ[$QGraf, _String]], $QGraf = "qgraf"; ];
@@ -149,7 +155,8 @@ DiagramGraphEdges[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
 (* Convert a diagram to an undirected `Graph` object.
  *)
 DiagramGraph[d_Diagram] := DiagramGraphEdges[d] // Graph
-DiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] := Module[{e1, e2, x},
+DiagramGraph[CutDiagram[d1_Diagram, d2_Diagram]] :=
+Module[{e1, e2, x},
   e1 = DiagramGraphEdges[d1];
   e2 = DiagramGraphEdges[d2];
   Join[
@@ -178,7 +185,8 @@ DiagramXGraph[Diagram[_, _, i_List, o_List, p_List, _]] := Join[
 
 (* Convert a diagram to a source code for a Graphviz `digraph` object.
  *)
-DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{},
+DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] :=
+Module[{},
   MkString[
    "digraph {\n",
    " fontsize=12; margin=0;\n",
@@ -199,8 +207,10 @@ DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] := Module[{},
    ]
 ]
 DiagramToGraphviz[CutDiagram[
-  Diagram[id1_, _, i1_List, o1_List, p1_List, v1_List], Diagram[id2_, _, i2_List, o2_List, p2_List, v2_List]
-]] := Module[{},
+  Diagram[id1_, _, i1_List, o1_List, p1_List, v1_List],
+  Diagram[id2_, _, i2_List, o2_List, p2_List, v2_List]
+]] :=
+Module[{},
   MkString[
    "digraph {\n",
    " fontsize=12; margin=0; label_scheme=2;\n",
@@ -247,7 +257,8 @@ FieldGraphvizColor[field_] = 12;
 (* Use Graphviz to convert a diagram into a `Graphics` object.
  * Useful for visualization.
  *)
-DiagramViz[d:(_Diagram|_CutDiagram)] := Module[{tmp, pdf, result},
+DiagramViz[d:(_Diagram|_CutDiagram)] :=
+Module[{tmp, pdf, result},
   tmp = MkTemp["diavis", ".gv"];
   pdf = tmp <> ".pdf";
   Export[tmp, DiagramToGraphviz[d], "String"];
@@ -502,7 +513,8 @@ ExpandScalarProducts[mompattern_] := ReplaceAll[sp[a_, b_] :> (
 
 (* Convert B notation back to a product of `den`.
  *)
-BToDen[ex_, bases_List] := Module[{bid2basis},
+BToDen[ex_, bases_List] :=
+Module[{bid2basis},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
   ex /.
     B[bid_, idx__] :> (bid2basis[bid]["denominators"]^{idx} // Apply[Times]) /.
@@ -517,7 +529,8 @@ BToDen[bases_List] := BToDen[#, bases] &
  * uses FORM: see [[RunThroughForm]] and [[FormCallToB]].
  *)
 ToB[basis_Association] := ToB[#, basis]&
-ToB[ex_, basis_Association] := Module[{indices},
+ToB[ex_, basis_Association] :=
+Module[{indices},
   ex //
     ExpandScalarProducts[Alternatives @@ Join[basis["externalmom"], basis["loopmom"]]] //
     ReplaceAll[basis["nummap"]] //
@@ -534,7 +547,8 @@ ToB[ex_, basis_Association] := Module[{indices},
  * with terms of the form `B[id, n[1], n[2], ...]` and coefficients
  * that depend on `n[i]`.
  *)
-IBPRelations[basis_Association] := Module[{dens, i, l, v},
+IBPRelations[basis_Association] :=
+Module[{dens, i, l, v},
   dens = basis["denominators"];
   Table[
     Product[DEN[i]^(n[i]), {i, Length[dens]}]*(
@@ -747,7 +761,8 @@ IBPBasisCross[bid_, basis_Association, externalmommap_] :=
 
 (* Check if two bases are identical, up to the order of keys.
  *)
-IBPBasisSameQ[b1_, b2_] := Sort[Normal[b1]] === Sort[Normal[b2]]
+IBPBasisSameQ[b1_Association, b2_Association] :=
+  Sort[Normal[b1]] === Sort[Normal[b2]]
 
 (*
  * ## Feynson interface for integral symmetries
@@ -778,10 +793,15 @@ ZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
 (* Return a pattern that matches zero intergals (in the `B`
  * notation) of a given basis.
  *)
-ZeroSectorPattern[basis_Association] := ZeroSectors[basis] //
-  MapReplace[B[bid_, idx__] :> B[bid, {idx} /. 1 -> _ /. 0 -> _?NonPositive // Apply[Sequence]]] //
+ZeroSectorPattern[basis_Association] :=
+  ZeroSectors[basis] //
+  MapReplace[
+    B[bid_, idx__] :>
+      B[bid, {idx} /. 1 -> _ /. 0 -> _?NonPositive // Apply[Sequence]]
+  ] //
   Apply[Alternatives]
-ZeroSectorPattern[bases_List] := bases // Map[ZeroSectorPattern] // Apply[Alternatives]
+ZeroSectorPattern[bases_List] :=
+  bases // Map[ZeroSectorPattern] // Apply[Alternatives]
 
 (* Return a list of momenta maps, such that applying them to
  * the list of feynman integral families makes symmetries and
@@ -797,15 +817,18 @@ ZeroSectorPattern[bases_List] := bases // Map[ZeroSectorPattern] // Apply[Altern
  * You can use [[UniqueSupertopologyMapping]] to figure out the
  * topmost supertopologies after this.
  *)
-SymmetryMaps[families_List, loopmom_List, sprules_] :=
-Module[{densets, uniqdensets, densetindices, uniqdensetmaps},
-  densets = families // NormalizeDens // Map[
-    CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopmom]]
+SymmetryMaps[families_List, loopMom_List, spRules_] :=
+Module[{denSets},
+  denSets = families // NormalizeDens // Map[
+    CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopMom]]
   ];
-  densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
-  RunThrough[$Feynson <> " symmetrize -", {densets, loopmom, sprules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
+  denSets = denSets /.
+    den[p_] :> p^2 /.
+    den[p_, m_] :> p^2-m /.
+    den[p_, m_, cut] :> p^2-m-CUT;
+  RunThrough[$Feynson <> " symmetrize -", {denSets, loopMom, spRules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
 ];
-SymmetryMaps[families_List, loopmom_List] := SymmetryMaps[families, loopmom, {}]
+SymmetryMaps[families_List, loopMom_List] := SymmetryMaps[families, loopMom, {}]
 
 (* Determine if the latter families of integrals can be expressed
  * in terms of the earlier ones. For each family (defined by a list
@@ -814,14 +837,16 @@ SymmetryMaps[families_List, loopmom_List] := SymmetryMaps[families, loopmom, {}]
  * given family with indices `{i_1,i_2,...}` is equal to an
  * integral in the family number `fam` with indices `{i_n1,i_n2,...}`.
  *)
-IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{},
+IntegralFamilyMappingRules[denSets_List, loopMom_List, spRules_List] :=
+Module[{},
   RunThrough[$Feynson <> " -d mapping-rules -", {
-    densets /.
+    denSets /.
       den[p_] :> p^2 /.
       den[p_, m_] :> p^2-m /.
       den[p_, m_, irr] :> p^2-m /.
       den[p_, m_, cut] :> p^2-m-CUT,
-    loopmom, sprules // Map[Apply[List]]
+    loopMom,
+    spRules // Map[Apply[List]]
   }]
 ]
 
@@ -829,9 +854,10 @@ IntegralFamilyMappingRules[densets_List, loopmom_List, sprules_List] := Module[{
  * determine which integrals are equal, and return a list of index sets,
  * with each integral in a set being equal to each other.
  *)
-IntegralEqualitySets[integrals_List, bases_List] := Module[{bid2basis, densets},
+IntegralEqualitySets[integrals_List, bases_List] :=
+Module[{bid2basis, denSets},
   bid2basis = bases // GroupBy[#["id"]&] // Map[Only];
-  densets = integrals //
+  denSets = integrals //
     MapReplace[
       B[bid_, idx___] :> MapThread[Which[
         #2 === 0, Nothing,
@@ -841,13 +867,13 @@ IntegralEqualitySets[integrals_List, bases_List] := Module[{bid2basis, densets},
         True, Error["Unrecognized index:", #2]
       ]&, {bid2basis[bid]["denominators"], {idx}}]
     ];
-  densets = densets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
+  denSets = denSets /. den[p_] :> p^2 /. den[p_, m_] :> p^2-m /. den[p_, m_, cut] :> p^2-m-CUT;
   IntegralFamilyMappingRules[
-    densets,
+    denSets,
     bases[[1, "loopmom"]],
     bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
   ] //
-    MapIndexed[Replace[#1, {} -> {First[#2], densets[[First[#2]]] // Length // Range}]&]//
+    MapIndexed[Replace[#1, {} -> {First[#2], denSets[[First[#2]]] // Length // Range}]&]//
     MapAt[Replace[Except[0] -> 1], #, {;;, 2, ;;}]& //
     PositionIndex //
     Values
@@ -867,9 +893,9 @@ UniqueIntegralIndices[integrals_List, bases_List] :=
 IntegralUnion[integrals_List, bases_List] :=
   integrals[[UniqueIntegralIndices[integrals, bases]]]
 
-(* Try to map the given integrals onto their symmetric equivalents
- * in the given sectors. Return a map from the given integrals
- * to integrals in the specified sectors.
+(* Try to map the given integrals (in B notation) onto their
+ * symmetric equivalents in the given sectors. Return a map from
+ * the given integrals to integrals in the specified sectors.
  *
  * Negative indices are not supported here.
  *)
@@ -890,11 +916,7 @@ Module[{bid2basis, fullfamidx, n, shortfams, intdensets, intidx, idx, bid},
     ] //
     Transpose;
   IntegralFamilyMappingRules[
-    Join[shortfams, intdensets] /.
-      den[p_] :> p^2 /.
-      den[p_, m_] :> p^2-m /.
-      den[p_, m_, irr] :> p^2-m /.
-      den[p_, m_, cut] :> p^2-m-CUT,
+    Join[shortfams, intdensets],
     bases[[1, "loopmom"]],
     bases[[1, "sprules"]] /. sp[p1_,p2_] :> p1*p2 // Map[Apply[List]]
   ][[Length[sectors]+1;;]] //
@@ -942,7 +964,7 @@ If[Not[MatchQ[$FORM, _String]], $FORM = "tform -w4"; ];
  *)
 RunThroughForm[{}, _] := {}
 RunThroughForm[exprs_List, code_] :=
- Module[{tmpsrc, tmpdst, tmplog, result, toform, fromform, i, expridxs},
+Module[{tmpsrc, tmpdst, tmplog, result, toform, fromform, i, expridxs},
   tmpsrc = MkTemp["amp", ".frm"];
   tmpdst = tmpsrc <> ".m";
   tmplog = tmpsrc // StringReplace[".frm" ~~ EndOfString -> ".log"];
@@ -1232,7 +1254,8 @@ Module[{bid, sector, r, s},
 
 (* Create Kira’s integral list files, one per basis.
  *)
-MkKiraIntegrals[dirname_, blist_] := Module[{bid, idxlist},
+MkKiraIntegrals[dirname_, blist_] :=
+Module[{bid, idxlist},
   Do[
     idxlist = blist // CaseUnion[B[bid, idx__] :> {idx}];
     MaybeMkFile[dirname <> "/" <> KiraBasisName[bid] <> ".integrals",
@@ -1366,7 +1389,8 @@ TopSectorMap[blist_] :=
 (* Return a list of sectors that represent a union of the given
  * ones. In other words, drop the subsectors.
  *)
-SectorUnion[sectors_List] := Module[{},
+SectorUnion[sectors_List] :=
+Module[{},
   sectors //
     Union // 
     GroupBy[#[[1]]&] //
@@ -1755,7 +1779,8 @@ KiraApplyResultsInBulk[confdir_String, bases_List] := KiraApplyResultsInBulk[#, 
 
 (* Load an IBP map from a Kira output file.
  *)
-LoadKiraMap[filename_] := Module[{table},
+LoadKiraMap[filename_] :=
+Module[{table},
   FailUnless[FileExistsQ[filename]];
   table = RunThrough[MkString["sed -E ",
       "-e 's/b0*([0-9]+)_dimshift([0-9]+)\\[/B[DimShift[\\1,\\2],/g' ",
@@ -1797,7 +1822,8 @@ LoadKiraMasters[confdir_String] :=
  * Note that usually it’s not the best idea to run Kira from
  * Mathematica. It is possible though.
  *)
-KiraIBP[ex_, bases_List, OptionsPattern[]] := Module[{blist, confdir, result},
+KiraIBP[ex_, bases_List, OptionsPattern[]] :=
+Module[{blist, confdir, result},
   confdir = MkTempDirectory["kira", ""];
   MkKiraConfig[confdir, bases, ex // CaseUnion[_B],
     PreferredMasters -> OptionValue[PreferredMasters],
@@ -1977,7 +2003,8 @@ LoadFireMasters[filename_String] := filename // SafeGet // #[[2, ;;, 2]]& // Map
 
 (* Load IBP tables from FIRE .tables file.
  *)
-LoadFireTables[filename_, coeff_: Identity, JoinTerms_: True] := Module[{temp, GGG, data},
+LoadFireTables[filename_, coeff_: Identity, JoinTerms_: True] :=
+Module[{temp, GGG, data},
     data = SafeGet[filename];
     temp = {GGG[##[[1]]], {GGG[##[[1]]], ##[[2]]} & /@ ##[[2]]} & /@ data[[1]];
     Set[GGG[##[[1]]], G[##[[2, 1]], ##[[2, 2]]]] & /@ data[[2]];
@@ -2617,7 +2644,8 @@ Module[{name, basisid, bid2basis, indices, basis, integral, coeff, p, m, dim, or
  * (or slightly different) parameters, then no (or very little)
  * recompilation will take place.
  *)
-SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] := Module[{},
+SecDecCompile[basedir_String, bases_List, integrals_List, jobs_:1] :=
+Module[{},
   SecDecPrepare[basedir, bases, integrals];
   SafeRun["make -j", jobs, " -C '", basedir, "' compile"];
 ]
@@ -2627,7 +2655,8 @@ MkInvariantsTxt[filename_, invariantmap_] :=
     invariantmap // Sort // MapReplace[(k_ -> v_) :> {k, "=", v//N//CForm}] // Riffle[#, " "]&
   ]
 
-MkSedArguments[filename_, invmap_] := Module[{},
+MkSedArguments[filename_, invmap_] :=
+Module[{},
   MaybeMkFile[filename, invmap //
     MapReplace[{
       (x_Symbol -> value_Integer /; value >= 0) :> { "-e s,", x, ",", value // InputForm, ",g" },
@@ -2693,26 +2722,27 @@ ExpandSP[ex_] := ex /. s_sp :> ExpandSP[s]
  * using [[ZeroSectors]], because some of the integrals will come
  * out to be scaleless.
  *)
-RaisingDRR[ex_, basis_Association] := Module[{loopmom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
-  loopmom = basis["loopmom"];
+RaisingDRR[ex_, basis_Association] :=
+Module[{loopMom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
+  loopMom = basis["loopmom"];
   mx = Table[
     If[i===j, 1, 1/2]
     Sum[
       OP[k] D[
         basis["denominators"][[k]] // DenToNumerator // ExpandSP,
-        Sort[sp[loopmom[[i]], loopmom[[j]]]]
+        Sort[sp[loopMom[[i]], loopMom[[j]]]]
       ],
       {k, Length[basis["denominators"]]}]
     ,
-    {i, Length[loopmom]},
-    {j, Length[loopmom]}];
+    {i, Length[loopMom]},
+    {j, Length[loopMom]}];
   op = Det[mx] // Bracket[#, _OP, Factor]&;
   bid = basis["id"];
   result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
     OP[n_]^k_. B[bid, idx__] :> (ii = {idx}; ii[[n]] += k; Pochhammer[ii[[n]]-k,k] B[bid, Sequence@@ii])
   ]&]&;
   If[NotFreeQ[result, _OP], Error["Failed to replace all OPs"]];
-  (-1)^Length[loopmom] result
+  (-1)^Length[loopMom] result
 ]
 
 (* “Lowering” dimensional recurrence: expresses a given integral
@@ -2725,10 +2755,11 @@ RaisingDRR[ex_, basis_Association] := Module[{loopmom, i, j, k, mx, op, OP, bid,
  * Same normalization issue as in [[RaisingDRR]]; divide by $(4\pi)^L$
  * to get the relation between physically normalized integrals.
  *)
-LoweringDRR[ex_, basis_Association] := Module[{extmom, loopmom, op, OP, i, k, n, bid, ii, idx, result},
-  extmom = basis["externalmom"];
-  loopmom = basis["loopmom"];
-  op = Det[GramMatrix[Join[loopmom, extmom]] /. basis["sprules"]] /.
+LoweringDRR[ex_, basis_Association] :=
+Module[{extMom, loopMom, op, OP, i, k, n, bid, ii, idx, result},
+  extMom = basis["externalmom"];
+  loopMom = basis["loopmom"];
+  op = Det[GramMatrix[Join[loopMom, extMom]] /. basis["sprules"]] /.
     basis["nummap"] /.
     basis["sprules"] /.
     DEN[n_] :> 1/OP[n] //
@@ -2739,9 +2770,9 @@ LoweringDRR[ex_, basis_Association] := Module[{extmom, loopmom, op, OP, i, k, n,
   ]&]&;
   If[NotFreeQ[result, _OP], Error["Failed to replace all As"]];
   (
-    (-2)^Length[loopmom]
-    1/Det[GramMatrix[extmom] /. basis["sprules"]]
-    1/Pochhammer[d-Length[extmom]-Length[loopmom]+1, Length[loopmom]]
+    (-2)^Length[loopMom]
+    1/Det[GramMatrix[extMom] /. basis["sprules"]]
+    1/Pochhammer[d-Length[extMom]-Length[loopMom]+1, Length[loopMom]]
     result
   )
 ]
@@ -2756,7 +2787,8 @@ BasisExternalInvariantSymbols[basis_Association] := basis[["sprules",;;,2]] // C
 
 (* All distinct `sp[p1, p2]`, for `p1` and `p2` being external
  * momenta of a basis. *)
-BasisExternalScalarProducts[basis_Association] := Module[{p1, p2},
+BasisExternalScalarProducts[basis_Association] :=
+Module[{p1, p2},
   splist = Table[
     Sort[sp[p1,p2]],
     {p1, basis["externalmom"]},
@@ -2789,7 +2821,8 @@ BasisInvGramMatrixMap[basis_Association] := BasisInvGramMatrixMap[basis] = Modul
 ]
 
 ClearAll[BDiffByMomentum, BDiffByMass, BDiffBySP, BDiffByInv, BDiff];
-BDiffByMomentum[basis_Association, indices_List, p_Symbol, pmul_Symbol] := Module[{dens, ddens},
+BDiffByMomentum[basis_Association, indices_List, p_Symbol, pmul_Symbol] :=
+Module[{dens, ddens},
   dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
   ddens = dens // MapReplace[
     {d:den[mom_, ___], n_} :> -n d^(n+1) 2 Sort[sp[mom, pmul]] D[mom, p]
@@ -2799,7 +2832,8 @@ BDiffByMomentum[basis_Association, indices_List, p_Symbol, pmul_Symbol] := Modul
     ,
     {k, Length[dens]}]
 ]
-BDiffByMass[basis_Association, indices_List, mass_Symbol] := Module[{dens, ddens},
+BDiffByMass[basis_Association, indices_List, mass_Symbol] :=
+Module[{dens, ddens},
   dens = {basis["denominators"], indices} // Transpose // DeleteCases[{_, 0}];
   ddens = dens // MapReplace[
     {d:den[mom_], n_} :> -n d^(n+1) D[ExpandSP[sp[mom, mom]], mass]0,
@@ -2820,14 +2854,15 @@ Module[{igm, pi},
   igm = BasisInvGramMatrixMap[basis];
   Sum[igm[pi,p2] BDiffByMomentum[basis, indices, p1, pi], {pi, basis["externalmom"]}]//ToB[basis]
 ]
-BDiffByInv[basis_Association, indices_List, inv_Symbol] := Module[{invlist, splist, ds, s},
+BDiffByInv[basis_Association, indices_List, inv_Symbol] :=
+Module[{invList, spList, ds, s},
   FailUnless[Length[basis["denominators"]] === Length[indices]];
-  invlist = BasisExternalInvariantSymbols[basis];
-  splist = BasisExternalScalarProducts[basis];
+  invList = BasisExternalInvariantSymbols[basis];
+  spList = BasisExternalScalarProducts[basis];
   (BDiffByMass[basis, indices, inv]) + Sum[
     ds = D[s/.basis["sprules"], inv];
     If[ds === 0, 0, ds*BDiffBySP[basis, indices, s]],
-    {s, splist}]
+    {s, spList}]
 ]
 
 (* Diffferentiate an integral in the `B` notation by a scalar
@@ -2841,13 +2876,15 @@ BDiff[basis_Association, inv_Symbol] := BDiff[#, basis, inv]&
  *)
 
 ClearAll[Amplitude];
-(* Convert a diagram into an amplitude.
+(* Convert a diagram into an amplitude by inserting Feynman rules.
  *
  * Only the default cases are here; all actual Feynman rules are
  * supplied by the model files.
  *)
 Amplitude[
-  dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]] := Flatten[{
+  dia:Diagram[id_, factor_, ifields_List, ofields_List, propagators_List, vertices_List]
+] :=
+  Flatten[{
     factor,
     propagators // Map[Amplitude],
     vertices // Map[Amplitude]

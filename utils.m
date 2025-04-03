@@ -22,10 +22,12 @@ MkExpression[args__] := MkString[args] // ToExpression
 WrString[f_, items__] := {items} // Flatten // Map[BinaryWrite[f, # // ToString]&]
 
 (* Convert the items into a string and write it into the file. *)
-MkFile[filename_, items__] := Module[{fd},
+MkFile[filename_, items__] :=
+Module[{fd},
   (* The BinaryFormat is needed for the BinaryWrite in WrString. *)
   fd = OpenWrite[MkString[filename], BinaryFormat->True];
-  If[fd === $Failed, Error["MkFile: failed to open ", filename, " for writing"]];
+  If[fd === $Failed,
+    Error["MkFile: failed to open ", filename, " for writing"]];
   WrString[fd, {items}];
   Close[fd];
 ]
@@ -42,7 +44,8 @@ SetAttributes[SetDefault, {HoldFirst}];
  * otherwise recompute the expression, save its value to the
  * file, and return it.
  *)
-Cached[filename_, ex_] := Module[{value},
+Cached[filename_, ex_] :=
+Module[{value},
   If[FileExistsQ[filename],
     Print["Loading ", filename];
     SafeGet[filename]
@@ -62,7 +65,8 @@ Attributes[Cached] = {HoldRest};
  * timestamps, which is useful if e.g. `make` is used somewhere
  * down the line.
  *)
-MaybeMkFile[filename_, items__] := Module[{fd, oldtext, newtext},
+MaybeMkFile[filename_, items__] :=
+Module[{fd, oldtext, newtext},
   oldtext = Quiet[ReadString[filename], {OpenRead::noopen}];
   If[oldtext === $Failed,
     MkFile[filename, items];
@@ -137,7 +141,8 @@ Third[l_] := Error["Third: a list of at least 3 elements expected, got: ", l]
 (* Replace each unique object matching `oldpattern` in `ex` to one
  * of the objects from `newlist` (which is assumed to contain
  * enough new objects). *)
-RenameUniques[ex_, oldpattern_, newlist_List] := Module[{old, i},
+RenameUniques[ex_, oldpattern_, newlist_List] :=
+Module[{old, i},
   old = CaseUnion[ex, oldpattern];
   If[Length[old] > Length[newlist], Error["RenameUniques: too few new names given; trying to rename: ", old]];
   ex /. Table[old[[i]] -> newlist[[i]], {i, Length[old]}]
@@ -221,16 +226,17 @@ MapFactors[f_] := MapFactors[f, #]&
 FactorMonomials[ex_List] := Map[FactorMonomials, ex]
 FactorMonomials[ex_Times] := Map[FactorMonomials, ex]
 FactorMonomials[ex_^n_] := FactorMonomials[ex]^n
-FactorMonomials[ex_] := Module[{gcd, terms},
+FactorMonomials[ex_] :=
+Module[{gcd, terms},
   terms = ex // Expand // Terms;
   If[Length[terms] === 0,
-   0
-   ,
-   gcd = terms[[1]];
-   terms[[2 ;;]] // Map[(gcd = PolynomialGCD[#, gcd];) &];
-   terms // Map[#/gcd &] // Apply[Plus] // #*gcd &
-   ]
+    0
+    ,
+    gcd = terms[[1]];
+    terms[[2 ;;]] // Map[(gcd = PolynomialGCD[#, gcd];) &];
+    terms // Map[#/gcd &] // Apply[Plus] // #*gcd &
   ]
+]
 
 
 (* Return True if an expression is a zero matrix, or a zero
@@ -242,7 +248,8 @@ ZeroMatrixQ[_] := False
 (* Return True if a rational expression is probably zero, and
  * False if it is definitely not zero.
  *)
-ProbablyZeroQ[ex_] := Module[{vars, map},
+ProbablyZeroQ[ex_] :=
+Module[{vars, map},
   vars = ex // CaseUnion[_Symbol];
   Quiet[
     AllTrue[Range[10], (
@@ -256,7 +263,8 @@ ProbablyZeroQ[ex_] := Module[{vars, map},
 (* Read and parse a file, return the expression inside. Automatically
  * handle `.gz`, `.bz2`, and `.mx` files. Fail if no such file exists,
  * or if there is an error reading it. *)
-SafeGet[filename_String] := Module[{result},
+SafeGet[filename_String] :=
+Module[{result},
   result = If[Not[FileExistsQ[filename]],
     $Failed,
     Which[
@@ -295,14 +303,15 @@ SafePut[expr_, filename_String] := (
  * an error code if running in a script; raise an exception when
  * in GUI. *)
 Error[msg__] := If[Length[Cases[$CommandLine, "-script"]] > 0,
-    Print["ERROR: ", msg]; Exit[1];
-    ,
-    Print[Style["ERROR: ", Red, Bold], msg]; Throw[$Failed];
+  Print["ERROR: ", msg]; Exit[1];
+  ,
+  Print[Style["ERROR: ", Red, Bold], msg]; Throw[$Failed];
 ]
 
 (* Fail the computation unless a condition is met. Useful for
  * assetions and unit tests. *)
-FailUnless[tests___] := Module[{test, idx, result},
+FailUnless[tests___] :=
+Module[{test, idx, result},
   Do[
     test = Extract[Hold[tests], {idx}, HoldForm];
     If[test === HoldForm[Null], Continue[]];
@@ -321,7 +330,8 @@ FailUnless[tests___] := Module[{test, idx, result},
       Error["Test failed!"];
     ];
     ,
-    {idx, Length[Hold[tests]]}];
+    {idx, Length[Hold[tests]]}
+  ];
 ];
 SetAttributes[FailUnless, {HoldAll}]
 
@@ -367,7 +377,8 @@ StringToNumber[s_String] := Internal`StringToDouble[s]
  * numeric values.
  *)
 FormatAmount[units_List] := FormatAmount[#, units]&
-FormatAmount[amount_, units_List] := Module[{i, a},
+FormatAmount[amount_, units_List] :=
+Module[{i, a},
   For[i = 1, i < Length[units] - 1 && amount > units[[i+1,2]]*0.95, i++, True];
   a = amount / units[[i, 2]] // N;
   MkString[NumberForm[a, {Infinity, 3}], units[[i,1]]]
@@ -432,7 +443,8 @@ PrettyPut[expr_, filename_String] := MkFile[filename, expr // Pretty]
 (* Extract the list of leaf elements, map them with the given
  * function, and put them back in. Note that `mapfn` must return
  * a list of the same size as its input. *)
-LeafApply[mapfn_, ex_] := Module[{skeleton, items},
+LeafApply[mapfn_, ex_] :=
+Module[{skeleton, items},
   LeafApply$SkeletonizeCounter = 0;
   {skeleton, items} = Reap[LeafApply$Skeletonize[ex]];
   items = First[items, {}] // mapfn;
@@ -449,7 +461,8 @@ LeafApply$Skeletonize[ex_] := (Sow[ex]; LeafApply$SkeletonizeCounter++; LeafAppl
  * of such parts, put its result back into the expression. Note
  * that `mapfn` must return a list of the same size as its input.
  *)
-SubexpressionApply[mapfn_, ex_, pat_] := Module[{counter, elements, exX, p, X},
+SubexpressionApply[mapfn_, ex_, pat_] :=
+Module[{counter, elements, exX, p, X},
   counter = 0;
   elements = <||>;
   exX = ex /. p:pat :> (counter++; elements[counter] = p; X[counter]);
@@ -459,7 +472,8 @@ SubexpressionApply[mapfn_, ex_, pat_] := Module[{counter, elements, exX, p, X},
   elements = MapThread[Rule, {keys, elements}] // Association;
   exX /. X -> elements
 ]
-SubexpressionApply[mapfn_, ex_, pat_:>fn_] := Module[{counter, elements, exX, p, X},
+SubexpressionApply[mapfn_, ex_, pat_:>fn_] :=
+Module[{counter, elements, exX, p, X},
   counter = 0;
   elements = <||>;
   exX = ex /. p:pat :> (counter++; elements[counter] = fn; X[counter]);
@@ -498,7 +512,8 @@ Module[{supersets, idx, IdxOf},
 
 (* What an awfully named function. Ugh. Don’t use it.
  *)
-SelectFactors[ex_, pat_] := Module[{f},
+SelectFactors[ex_, pat_] :=
+Module[{f},
     f = ex // Factors;
     {
         f // Cases[pat] // Apply[Times],
@@ -509,7 +524,8 @@ SelectFactors[pat_] := SelectFactors[#,pat]&
 
 (* Another badly named function. Consider not using.
  *)
-SplitFactors[ex_, pat_] := Module[{f},
+SplitFactors[ex_, pat_] :=
+Module[{f},
     f = ex // Factor // Factors;
     {
         f // Select[FreeQ[#, pat] &] // Apply[Times],
@@ -530,7 +546,8 @@ FactorDeleteCases[pat_] := FactorDeleteCases[#, pat]&
 
 (* Split a matrix into partial fraction.
  *)
-MxApart[mx_, x_] := Module[{mxa, xxlist, xx},
+MxApart[mx_, x_] :=
+Module[{mxa, xxlist, xx},
     mxa = Apart[mx, x] // Expand[#, x]& // Map[Terms, #, {2}]& // Map[SplitFactors[#, x]&, #, {3}]&;
     xxlist = mxa[[;; , ;; , ;; , 2]] // Flatten // Union;
     Table[List[
@@ -543,7 +560,8 @@ MxApart[mx_, x_] := Module[{mxa, xxlist, xx},
  * matrix of coefficients. Fail if the expression is not linear.
  *)
 CoefficientMatrix[vars_List] := CoefficientMatrix[#, vars]&
-CoefficientMatrix[ex_List, vars_List] := Module[{mxl},
+CoefficientMatrix[ex_List, vars_List] :=
+Module[{mxl},
   mxl = CoefficientArrays[ex, vars];
   Which[
     Length[mxl] === 0,
@@ -562,7 +580,8 @@ CoefficientMatrix[ex_List, vars_List] := Module[{mxl},
 (* Check if there is a linear combination of the given polynomials
  * in the given variables that is a zero.
  *)
-PolynomialsLinearlyDependentQ[polynomials_List, vars_List] := Module[{coefrules, monomial2index, coefarray},
+PolynomialsLinearlyDependentQ[polynomials_List, vars_List] :=
+Module[{coefrules, monomial2index, coefarray},
     coefrules = polynomials // Map[CoefficientRules[#, vars] &] // DeleteCases[{}];
     monomial2index = coefrules[[;; , ;; , 1]] // Apply[Join] // Union // PositionIndex;
     coefarray = coefrules // MapAt[monomial2index, #, {;; , ;; , 1}] & // MapIndexed[MapAt[Prepend[#2 // First], #1, {;; , 1}] &] // Apply[Join] // SparseArray;
@@ -636,7 +655,8 @@ NotMatchQ[pat_] := MatchQ[pat] /* Not
 
 (* Evaluate a given expression many times, for at least a second,
  * and return the average evaluation time. *)
-TimeIt[ex_] := Module[{t, niter = 2},
+TimeIt[ex_] :=
+Module[{t, niter = 2},
     t = AbsoluteTiming[Do[ex, niter]] // First;
     While[t < 0.9,
         niter = Max[niter*2, 1.1*niter/Max[t, 0.01] // Ceiling];
@@ -649,7 +669,8 @@ SetAttributes[TimeIt, HoldFirst];
 (* Return a random name of a fresh file of the form prefix.XXXXsuffix.
  * Make sure no file with this name exists.
  *)
-MkTemp[prefix_, suffix_] := Module[{i, fn, alphabet},
+MkTemp[prefix_, suffix_] :=
+Module[{i, fn, alphabet},
   alphabet = Characters["abcdefghijklmnopqrstuvwxyz0123456789"];
   While[True,
     i = RandomSample[alphabet, 8];
@@ -661,19 +682,22 @@ MkTemp[prefix_, suffix_] := Module[{i, fn, alphabet},
 (* Create a new temporary directory, with the name of the form
  * prefix.XXXXsuffix.
  *)
-MkTempDirectory[prefix_, suffix_] := Module[{dirname},
+MkTempDirectory[prefix_, suffix_] :=
+Module[{dirname},
   dirname = MkTemp[prefix, suffix];
   EnsureDirectory[dirname];
   dirname
 ]
 
 (* Make sure a directory exists. Create it if it doesn’t. *)
-EnsureDirectory[dirs__] := Module[{dir},
+EnsureDirectory[dirs__] :=
+Module[{dir},
   Do[Quiet[CreateDirectory[dir], {CreateDirectory::filex, CreateDirectory::eexist}];, {dir, {dirs}}];
 ]
 
 (* Make sure a directory doesn’t exist. Remove it if it does. *)
-EnsureNoDirectory[dirs__] := Module[{dir},
+EnsureNoDirectory[dirs__] :=
+Module[{dir},
   Do[Quiet[DeleteDirectory[dir, DeleteContents->True], {DeleteDirectory::nodir}];, {dir, {dirs}}];
 ]
 
@@ -684,15 +708,17 @@ EnsureCleanDirectory[dirs__] := (
 );
 
 (* Make sure a file doesn’t exist. Remove it if it does. *)
-EnsureNoFile[files__] := Module[{file},
+EnsureNoFile[files__] :=
+Module[{file},
   Do[Quiet[DeleteFile[file], {DeleteFile::fdnfnd}];, {file, {files}}];
 ]
 
 (* Run a command, fail if the exist status is not zero. *)
-SafeRun[code__] := Module[{retcode},
-  retcode = Run[MkString[code]];
-  If[retcode =!= 0,
-    Error["SafeRun: command failed with code ", retcode];
+SafeRun[code__] :=
+Module[{retCode},
+  retCode = Run[MkString[code]];
+  If[retCode =!= 0,
+    Error["SafeRun: command failed with code ", retCode];
   ];
 ];
 
@@ -703,16 +729,17 @@ SafeRun[code__] := Module[{retcode},
  * This is useful because some libraries require a clean Mathematica
  * environment, and explode if mixed with any other code.
  *)
-RunMathProgram[code___] := Module[{tmpfile, resfile, math, retcode, result},
+RunMathProgram[code___] :=
+Module[{tmpfile, resfile, math, retCode, result},
   tmpfile = MkTemp["math", ".m"];
   resfile = tmpfile <> ".result.m";
   MkFile[tmpfile, "RESULT = Null;\n\n", code, "\n\nPut[RESULT, \"", resfile, "\"];\n"];
   (*MkString[code]//PR;*)
   Run["cat " <> tmpfile];
   math = Environment["MATH"] /. $Failed -> "math";
-  retcode = Run[math <> " -script " <> tmpfile];
-  If[retcode =!= 0,
-    Error["RunMathProgram: mathematica failed with code ", retcode];
+  retCode = Run[math <> " -script " <> tmpfile];
+  If[retCode =!= 0,
+    Error["RunMathProgram: mathematica failed with code ", retCode];
   ];
   result = Get[resfile];
   If[result === $Failed,
@@ -726,7 +753,8 @@ RunMathProgram[code___] := Module[{tmpfile, resfile, math, retcode, result},
  * print current progress information and estimated completion time
  *)
 MapWithProgress[f_, items_Association] := items // Values // MapWithProgress[f] // MapThread[Rule, {items // Keys, #}]& // Association
-MapWithProgress[f_, items_List] := Module[{result, t0, tx, t, ndone = 0, ntodo = Length[items], bcounts, bfrac},
+MapWithProgress[f_, items_List] :=
+Module[{result, t0, tx, t, ndone = 0, ntodo = Length[items], bcounts, bfrac},
   t0 = tx = SessionTime[];
   bcounts = items//Map[ByteCount];
   result = Map[(
@@ -749,7 +777,8 @@ MapWithProgress[f_] := MapWithProgress[f, #] &
 
 (* Parallel `Map` with progress indicator.
  *)
-PMap[f_, data_] := Module[{tmpfile, todo, result, r, nitems, nstarted, nended, i},
+PMap[f_, data_] :=
+Module[{tmpfile, todo, result, r, nitems, nstarted, nended, i},
   {nitems, nstarted, nended} = {Length[data], 0, 0};
   $PARALLELDATA = data;
   SetSharedVariable[nstarted, nended];
@@ -794,7 +823,8 @@ BMapLoad[name_Symbol, filename_String] := BMapLoad[name, SafeGet[filename]]
 
 (* Add substitution rules to a B map. Check for conflicting
  * rules. *)
-BMapLoad[name_Symbol, map_List] := Module[{args, rule, k, v, k0, v0, ndups},
+BMapLoad[name_Symbol, map_List] :=
+Module[{args, rule, k, v, k0, v0, ndups},
     ndups = 0;
     Do[
         If[Not[MatchQ[rule, _B -> _]],
@@ -823,7 +853,8 @@ BMapLoad[name_Symbol, map_List] := Module[{args, rule, k, v, k0, v0, ndups},
 ]
 
 (* Set one key in a B map. Check for conflicting rules. *)
-BMapSet[name_Symbol, key_B, value_] := Module[{k, v},
+BMapSet[name_Symbol, key_B, value_] :=
+Module[{k, v},
     k = name @@ key;
     v = value /. B -> name;
     If[B @@ k === key,
@@ -851,7 +882,8 @@ BMapApply[name_Symbol, ex_] := ex /. B -> name /. name -> B
 BMapApply[name_Symbol] := BMapApply[name, #] &
 
 (* Append one or several B maps to a given one. *)
-BMapAppendTo[result_Symbol, rest__] := Module[{names = List[rest], keys, name, values},
+BMapAppendTo[result_Symbol, rest__] :=
+Module[{names = List[rest], keys, name, values},
     keys = Prepend[names, result] // Map[(DownValues[#] // Map[First] // ReplaceAll[# -> B] // Map[ReleaseHold])&] // Apply[Join] // Union;
     values = keys /. B -> result /. result -> First[names];
     Do[values = values /. names[[i-1]] -> names[[i]], {i, 2, Length[names]}];
@@ -861,7 +893,8 @@ BMapAppendTo[result_Symbol, rest__] := Module[{names = List[rest], keys, name, v
 ]
 
 (* Add one key-value pair to a B map. *)
-BMapAppendOne[name_Symbol, key_B, value_] := Module[{keys, values},
+BMapAppendOne[name_Symbol, key_B, value_] :=
+Module[{keys, values},
     keys = BMapKeys[name] // Append[#, key]&;
     values = keys /. B -> name /. name -> B /. key -> value;
     Clear[Evaluate[name]];
@@ -869,7 +902,8 @@ BMapAppendOne[name_Symbol, key_B, value_] := Module[{keys, values},
 ];
 
 (* Map all values of a B map. *)
-BMapMapValues[name_Symbol, fn_] := Module[{keys, values},
+BMapMapValues[name_Symbol, fn_] :=
+Module[{keys, values},
     keys = BMapKeys[name];
     values = keys // BMapApply[name] // Map[fn];
     Clear[Evaluate[name]];
@@ -877,7 +911,8 @@ BMapMapValues[name_Symbol, fn_] := Module[{keys, values},
 ];
 
 (* Map all values of a B map. *)
-BMapMapItems[name_Symbol, fn_] := Module[{keys, values, kv},
+BMapMapItems[name_Symbol, fn_] :=
+Module[{keys, values, kv},
     keys = BMapKeys[name];
     values = keys // BMapApply[name];
     kv = MapThread[fn, {keys, values}];
@@ -919,7 +954,8 @@ If[Not[MatchQ[$MapleDebug, True|False]],
  * process lingers on, even after the maple session is over. Those
  * need to be killed manually, for example by 'pkill mserver'.
  *)
-MapleRun[script_List] := Module[{fullscript, resultfile, proc, result},
+MapleRun[script_List] :=
+Module[{fullscript, resultfile, proc, result},
     resultfile = MkTemp["mapleresult", ".mpl"];
     fullscript = {
         script,
@@ -977,7 +1013,8 @@ MapleF[fun_String, arg1_, arg2_] := MapleRun[{
 (* Read a Maple file created by 'save(var, "filename")'. Strip
  * the var name, only return the content.
  *)
-MapleGet[filename_String] := Module[{text},
+MapleGet[filename_String] :=
+Module[{text},
     text = ReadString[filename];
     If[text === $Failed,
         Error["! Failed to read from ", filename];
@@ -1031,7 +1068,8 @@ FromMaple$Map = {
 MaplePut[expression_, filename_String] :=
     MaplePut[expression, filename, FileBaseName[filename]]
 
-MaplePut[expression_, filename_String, varname_String] := Module[{fd},
+MaplePut[expression_, filename_String, varname_String] :=
+Module[{fd},
     fd = OpenWrite[filename];
     If[fd === $Failed, Error["MaplePut: failed to open ", filename, " for writing"]];
     WrString[fd, varname, " := ", expression // ToMaple, ":\n"];
@@ -1190,7 +1228,8 @@ MaxZetaWeight[HPL[w_List, x_]] := Plus@@Abs[w]
 MaxZetaWeight[ex_] := 0
 
 SeriesMapFilter[f_] := SeriesMapFilter[#, f]&
-SeriesMapFilter[ex_SeriesData, f_] := Module[{ord, result, keeptail, val, done, term},
+SeriesMapFilter[ex_SeriesData, f_] :=
+Module[{ord, result, keeptail, val, done, term},
   result = {};
   keeptail = True;
   Do[
@@ -1203,14 +1242,16 @@ SeriesMapFilter[ex_SeriesData, f_] := Module[{ord, result, keeptail, val, done, 
   SeriesData[ex[[1]], ex[[2]], result, ex[[4]], If[keeptail, ex[[5]], ex[[4]] + Length[result]], ex[[6]]]
 ]
 
-SeriesDropZetaWeight[ex_SeriesData, n_Integer] := Module[{badord},
+SeriesDropZetaWeight[ex_SeriesData, n_Integer] :=
+Module[{badord},
   badord = ex[[3]] // MapIndexed[If[MaxZetaWeight[#1] >= n, #2[[1]], Nothing] &] // Min[#, Length[ex[[3]]] + 1] &;
   SeriesData[ex[[1]], ex[[2]], ex[[3, ;; badord - 1]], ex[[4]], ex[[5]] - Length[ex[[3]]] + badord - 1, ex[[6]]]
 ]
 SeriesDropZetaWeight[ex_List, n_Integer] := Map[SeriesDropZetaWeight[#, n] &, ex]
 SeriesDropZetaWeight[n_] := SeriesDropZetaWeight[#, n] &
 
-SufficientlyLongSeries[ex_, var_, minterms_] := Module[{k, series, mintermcount},
+SufficientlyLongSeries[ex_, var_, minterms_] :=
+Module[{k, series, mintermcount},
   For[k = 0, k < minterms + 1000, k++,
     series = Series[ex, {var, 0, k}];
     mintermcount = series // CaseUnion[s_SeriesData :> SeriesTermCount[s]] // Min;
@@ -1241,7 +1282,8 @@ Hlog[_, {}] = 1
 
 Derivative[1, {0 ..}][Hlog][x_, {w1_, wrest___}] := Hlog[x, {wrest}]/(x - w1)
 
-Derivative[0, dw : {(0|1) ..} /; (Plus @@ dw) == 1][Hlog][x_, w_List] := Module[{W, DW},
+Derivative[0, dw : {(0|1) ..} /; (Plus @@ dw) == 1][Hlog][x_, w_List] :=
+Module[{W, DW},
     DW = Table[W[i], {i, Length[w]}]*dw // Apply[Plus];
     Sum[Hlog[x, Drop[w, {i}]] D[Log[(W[i - 1] - W[i])/(W[i] - W[i + 1])], DW], {i, Length[w]}] /.
         {W[0] -> x, W[Length[w] + 1] -> 0, W[i_] :> w[[i]]}
@@ -1270,7 +1312,8 @@ HlogInt[x_] := HlogInt[#, x]&
 HlogInt[l_List, x_] := Map[HlogInt[#, x]&, l]
 HlogInt[Verbatim[SeriesData][v_, v0_, s_List, n1_, n2_, d_], x_] := SeriesData[v, v0, HlogInt[s, x], n1, n2, d]
 
-HlogInt[ex_, x_] := Module[{terms, a, b, k},
+HlogInt[ex_, x_] :=
+Module[{terms, a, b, k},
     terms = ex // Expand // Terms;
     terms = terms // Apart[#, x]&;
     terms = terms // Terms[Plus @@ #]&;
@@ -1337,10 +1380,12 @@ ClearAll[HlogArgTransform];
 HlogArgTransform[Hlog[x_, {0}], A - X, a_] := Hlog[a - x, {a}] + Hlog[a, {0}]
 HlogArgTransform[Hlog[x_, {a_}], A - X, a_] := Hlog[a - x, {0}] - Hlog[a, {0}]
 HlogArgTransform[Hlog[x_, {w_}], A - X, a_] := Hlog[a - x, {a - w}] + Hlog[a, {w}]
-HlogArgTransform[Hlog[x_, {a_, ww__}], A - X, a_] := Module[{t},
+HlogArgTransform[Hlog[x_, {a_, ww__}], A - X, a_] :=
+Module[{t},
   HlogInt[1/t HlogArgTransform[Hlog[a - t, {ww}], A - X, a], {t, a, a - x}]
 ]
-HlogArgTransform[Hlog[x_, {w_, ww__}], A - X, a_] := Module[{t},
+HlogArgTransform[Hlog[x_, {w_, ww__}], A - X, a_] :=
+Module[{t},
   Hlog[a, {w, ww}] + HlogInt[1/(t - a + w) HlogArgTransform[Hlog[a - t, {ww}], A - X, a], {t, 0, a - x}]
 ]
 (* x -> -x *)
@@ -1373,7 +1418,8 @@ HlogProductExpand[ex_] := FixedPoint[(Expand[#, _Hlog]&) /* ReplaceAll[{
 GProductExpand[ex_] := ex // GToHlog // HlogProductExpand // HlogToG
 
 HlogExtractTrail[ex_, pat_] := ex // HlogExtractTrail[pat]
-HlogExtractTrail[pat_] := Module[{i},
+HlogExtractTrail[pat_] :=
+Module[{i},
   ReplaceAll[
     Hlog[x_, {u___, w:Except[pat], a : Longest[pat ..]}] :> Sum[
       (-1)^i (AllMerges[{u}, Take[{a}, i] // Reverse] //
@@ -1420,7 +1466,8 @@ HlogExtractInfinite[ex_] := ex /. h_Hlog :> HlogExtractInfinite[h]
 (* Hlog <-> Gi *)
 HlogToGi[h:Hlog[_, {0 ..}]] := h
 HlogToGi[h:Hlog[_, {___, Except[0], 0 ..}]] := HlogExtractTrail[h, 0] // HlogToGi
-HlogToGi[Hlog[x_, w_List]] := Module[{wi, nzeros = 0},
+HlogToGi[Hlog[x_, w_List]] :=
+Module[{wi, nzeros = 0},
     Table[If[wi === 0, nzeros++; Nothing, {nzeros+1, nzeros=0; wi}], {wi, w}] // Gi[Sequence @@ Transpose[#], x]&
 ]
 HlogToGi[ex_] := ex /. h_Hlog :> HlogToGi[h]
@@ -1430,7 +1477,8 @@ GiToHlog[ex_] := ex /. g_Gi :> GiToHlog[g]
 (* Hlog expansion *)
 HlogSeries[ex_, order_] := ex // HlogExtractTrail[0]//ReplaceAll[Hlog[x,z:{0 ..}]:>Log[x]^Length[z]/Length[z]!] // HlogToGi // GiSeries[#, order]&
 HlogSeries[order_] := HlogSeries[#, order]&
-GiSeries[Gi[ms_List, xs_List, x_], order_] := Module[{k = ms // Length},
+GiSeries[Gi[ms_List, xs_List, x_], order_] :=
+Module[{k = ms // Length},
     Range[k, order]
     // Map[IntegerPartitions[#, {k}]&] // Apply[Join]
     // Map[Permutations] // Apply[Join]
@@ -1469,7 +1517,8 @@ HlogToHpl[ex_] := ex /. {
     h_Hlog :> Error["Can't convert to Hpl: ", h]
 }
 
-HplToHlog[ex_] := Module[{a},
+HplToHlog[ex_] :=
+Module[{a},
     ex /. {
         Hpl[x_, w_List] :> (a = HplMToA[w]; (-1)^Count[a, 1] Hlog[x, a]),
         h_Hpl :> Error["Can't convert to Hlog: ", h]
@@ -1620,13 +1669,15 @@ Options[GinshN] = {MaxProcesses -> 4};
  *
  * This is a workaround.
  *)
-GraphCycleCount[g_] := Module[{edges, uniqueedges},
+GraphCycleCount[g_] :=
+Module[{edges, uniqueedges},
   edges = EdgeList[g] // ReplaceAll[UndirectedEdge[a_, b_] :> UndirectedEdge @@ Sort[{a, b}]] // Sort;
   uniqueedges = edges // Union;
   Graph[uniqueedges] // FindFundamentalCycles // Length // # + Length[edges] - Length[uniqueedges] &
 ]
 
-FindVertices[incoming_List, outgoing_List, internal_List] := Module[{vars, terms, tags, cycles, n, VERT, Build, res, maxcoupling},
+FindVertices[incoming_List, outgoing_List, internal_List] :=
+Module[{vars, terms, tags, cycles, n, VERT, Build, res, maxcoupling},
     vars = Variables[{incoming, outgoing, internal}];
     terms = Table[Coefficient[e, v], {e, Join[incoming, -outgoing, internal, -internal]}, {v, vars}];
     tags = Join[
@@ -1675,7 +1726,8 @@ VerticesToGraph[incoming_List, outgoing_List, internal_List, v_List] := Graph[Jo
 
 ClearAll[VerticesToPrettyGraph, FindGraph, FindGraphs];
 
-VerticesToPrettyGraph[incoming_List, outgoing_List, internal_List, v_List, edgefn_] := Module[{edges1, edges2, edges3, VertexID},
+VerticesToPrettyGraph[incoming_List, outgoing_List, internal_List, v_List, edgefn_] :=
+Module[{edges1, edges2, edges3, VertexID},
     VertexID[edge_] := FirstPosition[v, {___, edge, ___}, -1, {1}] // First;
     edges1 = incoming // Length // Range // Map[UndirectedEdge[II[#], VertexID[Incoming[#, _]]]&] // MapThread[edgefn[#1, Incoming[#2]]&, {#, incoming}]&;
     edges2 = internal // Length // Range // Map[UndirectedEdge[VertexID[Internal[#, -internal[[#]]]], VertexID[Internal[#, internal[[#]]]]]&] // MapThread[edgefn[#1, Internal[#2]]&, {#, internal}]&;
