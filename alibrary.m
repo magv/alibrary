@@ -775,8 +775,27 @@ If[Not[MatchQ[$Feynson, _String]], $Feynson = "feynson -q -j4"; ];
  * each element being `B[basis-id, (1|0), ...]`, listing the topmost
  * zero sectors.
  *)
+TopZeroSectors[basis_Association] :=
+  RunThrough[$Feynson <> " -s zero-sectors -", {
+      basis["denominators"] /. {
+        den[p_] :> p^2,
+        den[p_, m_] :> p^2-m,
+        den[p_, m_, irr] :> p^2-m,
+        den[p_, m_, cut] :> p^2-m-CUT
+      },
+      basis["denominators"] /. den[_, _, cut] -> 1 /. den[___] -> 0,
+      basis["loopmom"],
+      basis["sprules"] /. Rule->List /. sp -> Times
+    }] //
+    Map[B[basis["id"], Sequence@@SectorIdToIndices[#, Length[basis["denominators"]]]]&]
+TopZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
+
+(* Calculate the zero sectors of a given basis. Return a list,
+ * each element being `B[basis-id, (1|0), ...]`, listing all
+ * zero sectors.
+ *)
 ZeroSectors[basis_Association] :=
-  RunThrough[$Feynson <> " zero-sectors -sj3 -", {
+  RunThrough[$Feynson <> " zero-sectors -", {
       basis["denominators"] /. {
         den[p_] :> p^2,
         den[p_, m_] :> p^2-m,
@@ -794,7 +813,7 @@ ZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
  * notation) of a given basis.
  *)
 ZeroSectorPattern[basis_Association] :=
-  ZeroSectors[basis] //
+  TopZeroSectors[basis] //
   MapReplace[
     B[bid_, idx__] :>
       B[bid, {idx} /. 1 -> _ /. 0 -> _?NonPositive // Apply[Sequence]]
@@ -826,7 +845,12 @@ Module[{denSets},
     den[p_] :> p^2 /.
     den[p_, m_] :> p^2-m /.
     den[p_, m_, cut] :> p^2-m-CUT;
-  RunThrough[$Feynson <> " symmetrize -", {denSets, loopMom, spRules // Map[Apply[List]]}] // Map[Map[Apply[Rule]]]
+  RunThrough[$Feynson <> " symmetrize -", {
+      denSets,
+      loopMom,
+      spRules /. sp[a_, b_] :> a*b // Map[Apply[List]]
+    }] //
+    Map[Map[Apply[Rule]]]
 ];
 SymmetryMaps[families_List, loopMom_List] := SymmetryMaps[families, loopMom, {}]
 
@@ -846,7 +870,7 @@ Module[{},
       den[p_, m_, irr] :> p^2-m /.
       den[p_, m_, cut] :> p^2-m-CUT,
     loopMom,
-    spRules // Map[Apply[List]]
+    spRules /. sp[a_, b_] :> a*b // Map[Apply[List]]
   }]
 ]
 
