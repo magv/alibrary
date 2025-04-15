@@ -511,6 +511,16 @@ ExpandScalarProducts[mompattern_] := ReplaceAll[sp[a_, b_] :> (
   }]
 )]
 
+(* Convert all `den[...]` in an expression into equivalent
+ * combinations of `sp[...]`, so that e.g. `den[p]` would become
+ * `1/sp[p,p]`. *)
+DenToSP[ex_] :=
+  ex /. {
+    den[p_] :> 1/sp[p, p],
+    den[p_, m2_] :> 1/(sp[p, p] - m2),
+    den[p_, m2_, irr] :> 1/(sp[p, p] - m2)
+  }
+
 (* Convert B notation back to a product of `den`.
  *)
 BToDen[ex_, bases_List] :=
