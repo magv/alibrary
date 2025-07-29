@@ -1189,7 +1189,7 @@ Module[{loopmom, extmom, dens, basis},
 (* Create Kira’s jobs file.
  *)
 MkKiraJobsYaml[filename_, bids_List, topsectors_, mode_] :=
-Module[{bid, sector, r, s}, 
+Module[{bid, sector, r, s, d},
   MaybeMkFile[filename,
     "jobs:\n",
     " - reduce_sectors:\n",
@@ -1197,10 +1197,19 @@ Module[{bid, sector, r, s},
     Table[
         r = Max[sector["r"], 1 + Plus@@sector["idx"]];
         s = Max[sector["s"], 1];
-        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [b", sector["idx"], "], r: ", r, ", s: ", s, "}\n"}
+        d = Max[sector["d"], 1];
+        {"     - {topologies: [", KiraBasisName[bid], "], sectors: [b",
+            sector["idx"], "], r: ", r, ", s: ", s, ", d: ", d, "}\n"}
         ,
         {bid, bids},
         {sector, topsectors[bid]}],
+    "    truncate_sp:\n",
+    Table[{
+        "     - {topologies: [", KiraBasisName[bid], "], l: ",
+        Min[Table[sector["l"], {sector, topsectors[bid]}]],
+        "}\n"
+      },
+      {bid, bids}],
     "    select_integrals:\n",
     "     select_mandatory_list:\n",
     Table[
@@ -1364,12 +1373,14 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
   sector2r = <||>;
   sector2s = <||>;
   sector2d = <||>;
+  sector2l = <||>;
   o2sectors = <||>;
   Do[
       sector = IndicesToSectorId[int];
       sector2i[sector] = SectorIdToIndices[sector, Length[int]];
       r = IndicesToR[int];
       s = IndicesToS[int];
+      l = IndicesToT[int] - s + 1;
       d = IndicesToDots[int];
       o = {s, r};
       o2sectors[o] = {o2sectors[o] /. _Missing -> {}, sector};
@@ -1381,6 +1392,7 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
        * inside [[MkKiraJobsYaml]].
        *)
       sector2s[sector] = Max[s, sector2s[sector] /. _Missing -> 0];
+      sector2l[sector] = Min[l, sector2l[sector] /. _Missing -> 9999];
       ,
       {int, idxlist}
   ];
@@ -1398,6 +1410,7 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
               sector2r[done[[i]]] = Max[sector2r[sector], sector2r[done[[i]]]];
               sector2d[done[[i]]] = Max[sector2d[sector], sector2d[done[[i]]]];
               sector2s[done[[i]]] = Max[sector2s[sector], sector2s[done[[i]]]];
+              sector2l[done[[i]]] = Min[sector2l[sector], sector2l[done[[i]]]];
               ];
           ,
           {sector, o2sectors[o] // Flatten // Union // Reverse}
@@ -1406,7 +1419,12 @@ Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d,
       {o, o2sectors // Keys // Sort // Reverse}
   ];
   Table[
-    <|"id" -> sector, "idx" -> sector2i[sector], "r" -> sector2r[sector], "s" -> sector2s[sector], "d" -> sector2d[sector]|>
+    <|"id" -> sector,
+      "idx" -> sector2i[sector],
+      "r" -> sector2r[sector],
+      "s" -> sector2s[sector],
+      "l" -> sector2l[sector],
+      "d" -> sector2d[sector]|>
     ,
     {sector, sectors}] //
     Sort
