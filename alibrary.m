@@ -798,7 +798,7 @@ TopZeroSectors[basis_Association] :=
       basis["sprules"] /. Rule->List /. sp -> Times
     }] //
     Map[B[basis["id"], Sequence@@SectorIdToIndices[#, Length[basis["denominators"]]]]&]
-TopZeroSectors[bases_List] := bases // Map[ZeroSectors] // Apply[Join]
+TopZeroSectors[bases_List] := bases // Map[TopZeroSectors] // Apply[Join]
 
 (* Calculate the zero sectors of a given basis. Return a list,
  * each element being `B[basis-id, (1|0), ...]`, listing all
