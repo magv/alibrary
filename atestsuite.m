@@ -42,6 +42,10 @@ FailUnless[ProbablyZeroQ[0] === True];
 FailUnless[ProbablyZeroQ[x] === False];
 FailUnless[ProbablyZeroQ[(x+1)^2-x^2-2x-1] === True];
 
+counter = 0;
+FailUnless[({1,2,3,1,3,4} // UniqueApply[Map[(counter += 1; #)&]]) === {1,2,3,1,3,4}];
+FailUnless[counter === 4];
+
 Module[{e = y + x y + 1/x/(x - a)/(x + 1) + Hlog[x, {1, y, 3}]/x},
   FailUnless[ FullSimplify[D[HlogInt[e, x], x] - e] === 0 ]]
 

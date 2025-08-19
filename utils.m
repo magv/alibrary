@@ -484,6 +484,34 @@ Module[{counter, elements, exX, p, X},
   exX /. X -> elements
 ]
 
+(* Apply a list-to-list mapping function MapFun to a list, but
+ * do so by figuring out the set of unique items, applying the
+ * mapping function to them, and then reshuffling the result so
+ * it would look like it was applied to the whole list. Useful if
+ * the mapping function is slow and there is a lot of duplicated
+ * items. *)
+UniqueApply[MapFun_, items_List] :=
+Module[{WRAP, uniqItemList, uniqItemIndex, itemIndexList, mappedUniqItems, item, idx},
+  uniqItemList = {};
+  uniqItemIndex = <||>;
+  itemIndexList = {};
+  Do[
+    (* We need to wrap items so that Flatten would work on uniqItemList. *)
+    item = WRAP[item];
+    idx = Lookup[uniqItemIndex, item, None];
+    If[idx === None,
+      uniqItemList = {uniqItemList, item};
+      uniqItemIndex[item] = idx = Length[uniqItemIndex] + 1;
+    ];
+    itemIndexList = {itemIndexList, idx};
+    ,
+    {item, items}];
+  mappedUniqItems = uniqItemList // Flatten // #[[;;,1]]& // MapFun;
+  If[NotMatchQ[mappedUniqItems, _List], Error["UniqApply: MapFun did not return a list"]];
+  mappedUniqItems[[itemIndexList // Flatten]]
+]
+UniqueApply[MapFun_] := UniqueApply[MapFun, #]&
+
 (*
 Among a list of sets, find such a sublist such that all other
 sets are subsets of these ones. Return the list, and a list of
