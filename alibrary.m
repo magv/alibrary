@@ -846,7 +846,7 @@ ZeroSectorPattern[bases_List] :=
  * You can use [[UniqueSupertopologyMapping]] to figure out the
  * topmost supertopologies after this.
  *)
-SymmetryMaps[families_List, loopMom_List, spRules_] :=
+SymmetryMaps[families_List, loopMom_List, OptionsPattern[]] :=
 Module[{denSets},
   denSets = families // NormalizeDens // Map[
     CaseUnion[_den] /* Union /* Select[NotFreeQ[Alternatives@@loopMom]]
@@ -855,14 +855,16 @@ Module[{denSets},
     den[p_] :> p^2 /.
     den[p_, m_] :> p^2-m /.
     den[p_, m_, cut] :> p^2-m-CUT;
-  RunThrough[$Feynson <> " symmetrize -", {
+  RunThrough[
+    MkString[$Feynson, If[OptionValue[PreserveOrder], " -d", ""], " symmetrize -"],
+    {
       denSets,
       loopMom,
-      spRules /. sp[a_, b_] :> a*b // Map[Apply[List]]
+      OptionValue[SPRules] /. sp[a_, b_] :> a*b // Map[Apply[List]]
     }] //
     Map[Map[Apply[Rule]]]
 ];
-SymmetryMaps[families_List, loopMom_List] := SymmetryMaps[families, loopMom, {}]
+Options[SymmetryMaps] = {SPRules -> {}, PreserveOrder -> False};
 
 (* Determine if the latter families of integrals can be expressed
  * in terms of the earlier ones. For each family (defined by a list
