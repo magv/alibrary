@@ -121,6 +121,11 @@ ReallyReplace[{rules__}] := Replace[{rules, x_ :> Error["Failed to replace: ", x
 ReallyReplace[rule_] := Replace[{rule, x_ :> Error["Failed to replace: ", x]}]
 ReallyReplace[ex_, rule_] := ex // ReallyReplace[rule]
 
+(* Apply a function to key-value pairs of an Association, returning
+ * the same Association with mapped values. *)
+MapKV[f_, a_Association] := a // Normal // Map[Apply[(#1 -> f[#1, #2])&]] // Association
+MapKV[f_] := MapKV[f, #]&
+
 (* Get the first and the only element in a list, fail if the
  * list is not a single element list. *)
 Only[{el_}] := el
