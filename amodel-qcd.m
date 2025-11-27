@@ -58,6 +58,11 @@ $QGrafOptions = "";
 
 $QGrafExtra = "";
 
+DiagramHasNoGSnailsQ[Diagram[_, _, i_List, o_List, p_List, v_List]] :=
+  FreeQ[p, P["g", _, _, v1_, v1_, _], {1}]
+
+$QGrafDiagramFilter = DiagramHasNoGSnailsQ;
+
 (* ## Field classification
  *)
 

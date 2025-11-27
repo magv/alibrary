@@ -22,6 +22,8 @@ $QGrafOptions = "nosnail,notadpole";
 
 $QGrafExtra = "";
 
+$QGrafDiagramFilter = True&;
+
 (* ## Field classification
  *)
 
