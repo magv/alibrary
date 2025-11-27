@@ -68,13 +68,13 @@ DiagramVertices[Diagram[_, _, _, _, _, verts_List]] := verts
  * for fields that always come in a pair in each vertex (e.g.
  * fermions).
  *)
-DiagramClosedLoops[fieldpat_] := DiagramFieldLoops[#, fieldpat]&
-DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldpat_] :=
+DiagramClosedLoops[fieldPattern_] := DiagramClosedLoops[#, fieldPattern]&
+DiagramClosedLoops[Diagram[_, _, i_List, o_List, p_List, _], fieldPattern_] :=
 Module[{edges, SS, II, EE},
   edges = Join[
-    i // Cases[ F[fieldpat, fi_, vi_, _] :> SS[fi] <-> II[vi] ],
-    o // Cases[ F[fieldpat, fi_, vi_, _] :> II[vi] <-> EE[fi] ],
-    p // Cases[ P[fieldpat, fi1_, fi2_, vi1_, vi2_, _] :> II[vi1] <-> II[vi2] ]
+    i // Cases[ F[fieldPattern, fi_, vi_, _] :> SS[fi] <-> II[vi] ],
+    o // Cases[ F[fieldPattern, fi_, vi_, _] :> II[vi] <-> EE[fi] ],
+    p // Cases[ P[fieldPattern, fi1_, fi2_, vi1_, vi2_, _] :> II[vi1] <-> II[vi2] ]
   ];
   edges // ConnectedComponents // Select[FreeQ[_SS|_EE]] // Length
 ]
@@ -2799,7 +2799,11 @@ Module[{loopMom, i, j, k, mx, op, OP, bid, ii, n, idx, result},
   op = Det[mx] // Bracket[#, _OP, Factor]&;
   bid = basis["id"];
   result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
-    OP[n_]^k_. B[bid, idx__] :> (ii = {idx}; ii[[n]] += k; Pochhammer[ii[[n]]-k,k] B[bid, Sequence@@ii])
+    OP[n_]^k_. B[bid, idx__] :> (
+      ii = {idx};
+      ii[[n]] += k;
+      Pochhammer[ii[[n]]-k,k] B[bid, Sequence@@ii]
+    )
   ]&]&;
   If[NotFreeQ[result, _OP], Error["Failed to replace all OPs"]];
   (-1)^Length[loopMom] result
@@ -2826,7 +2830,11 @@ Module[{extMom, loopMom, op, OP, i, k, n, bid, ii, idx, result},
     Bracket[#, _B, Together]&;
   bid = basis["id"];
   result = op * ex // Bracket[#, _B|_OP, #&, ReplaceRepeated[#,
-    OP[n_]^k_. B[bid, idx__] :> (ii = {idx}; ii[[n]] -= k; B[bid, Sequence@@ii])
+    OP[n_]^k_. B[bid, idx__] :> (
+      ii = {idx};
+      ii[[n]] -= k;
+      B[bid, Sequence@@ii]
+    )
   ]&]&;
   If[NotFreeQ[result, _OP], Error["Failed to replace all As"]];
   (
@@ -2868,15 +2876,16 @@ BasisInvGramMatrix[basis_Association] := Inverse[BasisGramMatrix[basis]] // Toge
 (* The inverse of Gram matrix for a given basis, represented
  * as a nested Association. This is so it could be indexed by
  * momenta as `BasisInvGramMatrixMap[basis][p1,p2]`. *)
-BasisInvGramMatrixMap[basis_Association] := BasisInvGramMatrixMap[basis] = Module[{igm, emom, i, j},
-  igm = BasisInvGramMatrix[basis];
-  emom = basis["externalmom"];
+BasisInvGramMatrixMap[basis_Association] := BasisInvGramMatrixMap[basis] =
+Module[{invGM, extMom, i, j},
+  invGM = BasisInvGramMatrix[basis];
+  extMom = basis["externalmom"];
   Table[
-    emom[[i]] -> Association[
-      Table[emom[[j]] -> igm[[i,j]], {j, Length[emom]}]
+    extMom[[i]] -> Association[
+      Table[extMom[[j]] -> invGM[[i,j]], {j, Length[extMom]}]
     ]
     ,
-    {i, Length[emom]}
+    {i, Length[extMom]}
   ] // Association
 ]
 
