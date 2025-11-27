@@ -189,20 +189,20 @@ DiagramToGraphviz[Diagram[id_, _, i_List, o_List, p_List, _]] :=
 Module[{},
   MkString[
    "digraph {\n",
-   " fontsize=12; margin=0;\n",
-   " node [shape=circle width=0.1 color=black];\n",
-   " edge [fontsize=8; colorscheme=paired12];\n",
-   i /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [width=0.05 color=gray];\n"} &],
-   o /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [width=0.05 color=gray];\n"} &],
+   " fontsize=9; margin=0;\n",
+   " node [fontsize=9 shape=point width=0.03 color=black fontcolor=gray];\n",
+   " edge [fontsize=9 colorscheme=paired12 arrowhead=vee arrowsize=0.4];\n",
+   i /. F[f_, fi_, v9_, mom_] :> fi // Union // Map[{" ", #, " [shape=none];\n"} &],
+   o /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, " [shape=none];\n"} &],
    i /. F[f_, fi_, vi_, mom_] :> {
      " ", fi, " -> ", vi,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"},
+     " [label=<<B>", f, "</B>(", mom // ToString // StringReplace[" " -> ""], ")>,color=", FieldGraphvizColor[f] - 1, "];\n"},
    p /. P[f_, fi1_, fi2_, vi1_, vi2_, mom_] :> {
      " ", vi1, " -> ", vi2,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f], ",style=bold];\n"},
+     " [label=<<B>", f, "</B>(", mom // ToString // StringReplace[" " -> ""], ")>,color=", FieldGraphvizColor[f], "];\n"},
    o /. F[f_, fi_, vi_, mom_] :> {
      " ", vi, " -> ", fi,
-     " [label=\"", f, "(", mom // ToString // StringReplace[" " -> ""], ")\",color=", FieldGraphvizColor[f] - 1, "];\n"},
+     " [label=<<B>", f, "</B>(", mom // ToString // StringReplace[" " -> ""], ")>,color=", FieldGraphvizColor[f] - 1, "];\n"},
    "}\n"
    ]
 ]
@@ -213,9 +213,9 @@ DiagramToGraphviz[CutDiagram[
 Module[{},
   MkString[
    "digraph {\n",
-   " fontsize=12; margin=0; label_scheme=2;\n",
-   " node [shape=circle width=0.1 color=black];\n",
-   " edge [fontsize=8; colorscheme=paired12];\n",
+   " fontsize=9; margin=0;\n",
+   " node [fontsize=9 shape=point width=0.03 color=black fontcolor=gray];\n",
+   " edge [fontsize=9 colorscheme=paired12 arrowhead=vee arrowsize=0.4];\n",
    i1 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, "01 [fontsize=10 width=0.05 color=gray label=\"", #, "\"];\n"} &],
    i2 /. F[f_, fi_, vi_, mom_] :> fi // Union // Map[{" ", #, "02 [fontsize=10 width=0.05 color=gray label=\"", #, "'\"];\n"} &],
    v1 /. V[id_, ___] :> id // Union // Map[{" ", #, "01 [label=\"", #, "\"];\n"} &],
