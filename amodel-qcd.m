@@ -35,7 +35,7 @@ $QGrafModel = "\
 # Z bosons
 [Z, Z, +, external]
 # Gluons
-[g, g, +]
+[g, g, +, notadpole]
 # Quarks & antiquarks
 [q, Q, -]
 # Heavy quarks & antiquarks
