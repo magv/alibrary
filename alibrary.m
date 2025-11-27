@@ -263,7 +263,11 @@ Module[{tmp, pdf, result},
   pdf = tmp <> ".pdf";
   Export[tmp, DiagramToGraphviz[d], "String"];
   Run["neato -Tpdf -o", pdf, tmp];
-  result = Import[pdf];
+  If[$VersionNumber >= 12.2,
+    result = Import[pdf, {"PDF", "PageGraphics"}];
+    ,
+    result = Import[pdf];
+  ];
   DeleteFile[{tmp, pdf}];
   result // First
 ]
