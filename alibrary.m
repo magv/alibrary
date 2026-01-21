@@ -527,6 +527,51 @@ DenToSP[ex_] :=
     den[p_, m2_, irr] :> 1/(sp[p, p] - m2)
   }
 
+(* Determine all scalar product rules, given a momentum conservation
+ * rule, and equations defining the invariants.
+ * Example:
+ *   In[1]:= SPRules[p1 + p2 + p3 + p4, {
+ *             sp[p1] == 0,
+ *             sp[p2] == 0,
+ *             sp[p3] == 0,
+ *             sp[p4] == 0,
+ *             sp[p1+p2] == s,
+ *             sp[p1+p3] == t
+ *           }]
+ *   Out[1]= {sp[p1, p1] -> 0,
+ *            sp[p1, p2] -> s/2,
+ *            sp[p1, p3] -> t/2,
+ *            sp[p1, p4] -> -1/2*s - t/2,
+ *            sp[p2, p2] -> 0,
+ *            sp[p2, p3] -> -1/2*s - t/2,
+ *            sp[p2, p4] -> t/2,
+ *            sp[p3, p3] -> 0,
+ *            sp[p3, p4] -> s/2,
+ *            sp[p4, p4] -> 0}
+ *)
+SPRules[zero_, eqns_List] :=
+Module[{moms, eliminatedMom, eliminatedRule, rules},
+  moms = zero // CaseUnion[_Symbol];
+  eliminatedRule = Solve[zero == 0, moms[[-1]]] // Only // Only;
+  eliminatedMom = eliminatedRule[[1]];
+  rules = eqns /. eliminatedRule //
+    ExpandSP //
+    ReplaceAll[Rule -> Equal] //
+    Solve[#, CaseUnion[#, _sp]]& //
+    Only;
+  Join[
+    rules,
+    Table[
+      sp@@Sort[{eliminatedMom, mom}] -> (
+        sp@@Sort[{eliminatedMom, mom}] //
+          ReplaceAll[eliminatedRule] //
+          ExpandSP //
+          ReplaceAll[rules]
+      ),
+      {mom, moms}]
+  ] // Expand // Sort
+]
+
 (* Convert B notation back to a product of `den`.
  *)
 BToDen[ex_, bases_List] :=
