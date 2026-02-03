@@ -236,6 +236,8 @@ FailUnless[FreeQ[amplitudesB, l1|l2|l3|l4]];
  * ourselves.
  *)
 
+EnsureIsInPATH[$Apath];
+
 amplitudesBibp = amplitudesB //
   ReplaceAll[mt2 -> 1] //
   KiraIBP[bases, ReplaceByOne->mt2];

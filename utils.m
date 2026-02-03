@@ -746,6 +746,16 @@ Module[{file},
   Do[Quiet[DeleteFile[file], {DeleteFile::fdnfnd}];, {file, {files}}];
 ]
 
+(* Add a given directory to the "PATH" environment variable, if
+ * it is not already there. *)
+EnsureIsInPATH[directory_String] :=
+Module[{PATH},
+  PATH = Environment["PATH"] // StringSplit[#, ":"]& // #[[;;-1]]&;
+  If[Not[MemberQ[PATH, directory]],
+    SetEnvironment["PATH" -> (Join[PATH, {directory}] // StringRiffle[#, ":"]&)]
+  ];
+]
+
 (* Run a command, fail if the exist status is not zero. *)
 SafeRun[code__] :=
 Module[{retCode},
