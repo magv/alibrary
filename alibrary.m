@@ -1421,7 +1421,7 @@ BToSectorPattern[bs_List] := bs // Map[BToSectorPattern] // Apply[Alternatives]
  * specified by the lists of their indices.
  *)
 TopSectors[idxlist_List] :=
-Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, r, s, d, o, sectors, done, i, ss},
+Module[{sector2i, sector2r, sector2s, sector2d, o2sectors, int, sector, l, r, s, d, o, sectors, done, i, ss},
   sector2i = <||>;
   sector2r = <||>;
   sector2s = <||>;
